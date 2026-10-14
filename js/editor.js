@@ -156,7 +156,7 @@
       ws.appendChild(slotEl(program, 'root'));
       var full = maxBlocks && count() >= maxBlocks;
       pal.classList.toggle('full', !!full);
-      if (opts.onRender) opts.onRender(count(), maxBlocks);
+      if (opts.onRender) opts.onRender(count(), maxBlocks, program);
     }
 
     function renderPalette() {

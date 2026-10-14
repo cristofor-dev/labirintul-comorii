@@ -274,7 +274,28 @@ img { display: block; }
 .program-head h3 { margin: 0; }
 .block-count { font-size: .86rem; font-weight: 700; color: var(--muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; }
 .block-count b { color: var(--text); }
-.program-head .btn { margin-left: auto; }
+.program-head .btn-python { margin-left: auto; }
+.btn-python.on { background: #0f172a; color: #e2e8f0; border-color: #0f172a; }
+
+/* ---------- Codul Python ---------- */
+.py-panel { margin-top: 12px; border-radius: 16px; overflow: hidden; background: #0f172a; box-shadow: 0 16px 32px -16px rgba(15, 23, 42, .6); animation: fade .2s; }
+.py-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #1e293b; color: #94a3b8; font-size: .82rem; font-weight: 700; }
+.py-title { display: flex; align-items: center; gap: 10px; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+.py-dots { display: inline-flex; gap: 5px; }
+.py-dots i { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
+.py-dots i:nth-child(2) { background: #f59e0b; }
+.py-dots i:nth-child(3) { background: #22c55e; }
+.py-copy { border: 1px solid #334155; background: transparent; color: #cbd5e1; border-radius: 8px; padding: 3px 10px; font-weight: 700; font-size: .8rem; cursor: pointer; }
+.py-copy:hover { background: #334155; }
+.py-code { margin: 0; padding: 12px 0; max-height: 40vh; overflow: auto; counter-reset: line; }
+.py-code code { display: block; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: .92rem; line-height: 1.65; color: #e2e8f0; }
+.py-line { display: block; white-space: pre; padding: 0 16px 0 0; transition: background .15s; }
+.py-line::before { counter-increment: line; content: counter(line); display: inline-block; width: 2.6em; margin-right: 14px; text-align: right; color: #475569; user-select: none; }
+.py-line.running { background: rgba(251, 191, 36, .18); box-shadow: inset 3px 0 0 var(--gold); }
+.py-kw { color: #c084fc; font-weight: 700; }
+.py-fn { color: #60a5fa; }
+.py-num { color: #fbbf24; }
+.py-com { color: #64748b; font-style: italic; }
 .tip { font-size: .82rem; color: var(--muted); margin: 10px 2px 0; }
 
 /* ---------- Blocuri ---------- */

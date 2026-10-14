@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -110,9 +110,17 @@
           <div class="program-head">
             <h3>Programul tău</h3>
             <span id="block-count" class="block-count"></span>
+            <button id="btn-python" class="btn btn-ghost btn-sm btn-python" type="button" aria-pressed="false" aria-controls="py-panel">🐍 Python</button>
             <button id="btn-clear" class="btn btn-ghost btn-sm" type="button">Șterge tot</button>
           </div>
           <div id="workspace" class="workspace"></div>
+          <div id="py-panel" class="py-panel" hidden>
+            <div class="py-head">
+              <span class="py-title"><span class="py-dots"><i></i><i></i><i></i></span>program.py</span>
+              <button id="py-copy" class="py-copy" type="button">Copiază</button>
+            </div>
+            <pre class="py-code"><code id="py-code"></code></pre>
+          </div>
           <p class="tip">Atinge un bloc din „Comenzi” ca să-l adaugi. Trage blocurile ca să le muți; trage-le afară ca să le ștergi.</p>
         </div>
       </div>
@@ -171,10 +179,11 @@
     </div>
   </div>
 
-  <script src="js/levels.js?v=4"></script>
-  <script src="js/engine.js?v=4"></script>
-  <script src="js/storage.js?v=4"></script>
-  <script src="js/editor.js?v=4"></script>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/levels.js?v=5"></script>
+  <script src="js/engine.js?v=5"></script>
+  <script src="js/storage.js?v=5"></script>
+  <script src="js/editor.js?v=5"></script>
+  <script src="js/python.js?v=5"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>

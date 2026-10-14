@@ -368,6 +368,7 @@
     var first = LEVELS.filter(function (l) { return l.world === level.world; })[0] === level;
     setGuide((first ? world.intro + ' ' : '') + level.hint);
 
+    setPythonVisible(pythonVisible());
     // elemente noi la fiecare nivel, ca să nu se adune ascultătorii editorului anterior
     ['workspace', 'palette'].forEach(function (id) {
       var old = $(id);
@@ -384,7 +385,10 @@
         save();
         if (!game.run) resetHero();
       },
-      onRender: updateCount,
+      onRender: function (n, max, prog) {
+        updateCount(n);
+        renderPython(prog);
+      },
       onLimit: function () {
         setGuide('Ai folosit toate blocurile. Poți scrie programul mai scurt, cu o buclă?', 'warn');
         var c = $('block-count');
@@ -396,6 +400,45 @@
     show('screen-game'); // întâi afișăm ecranul, ca tabla să-și poată măsura lățimea
     loadMap(0);
   }
+
+  // ---------- Codul Python ----------
+  var PY_KEY = 'labirint.showPython';
+
+  function pythonVisible() {
+    try { return localStorage.getItem(PY_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function setPythonVisible(on) {
+    try { localStorage.setItem(PY_KEY, on ? '1' : '0'); } catch (e) { /* doar pentru sesiunea curentă */ }
+    $('py-panel').hidden = !on;
+    $('btn-python').setAttribute('aria-pressed', on ? 'true' : 'false');
+    $('btn-python').classList.toggle('on', on);
+    if (on && game && game.editor) renderPython(game.editor.getProgram());
+  }
+
+  function renderPython(prog) {
+    if ($('py-panel').hidden) return;
+    $('py-code').innerHTML = Python.toHtml(prog);
+  }
+
+  function highlightPython(id) {
+    if ($('py-panel').hidden) return;
+    qsa('#py-code .py-line.running').forEach(function (l) { l.classList.remove('running'); });
+    if (!id) return;
+    var line = document.querySelector('#py-code .py-line[data-id="' + id + '"]');
+    if (line) line.classList.add('running');
+  }
+
+  $('btn-python').addEventListener('click', function () { setPythonVisible($('py-panel').hidden); });
+
+  $('py-copy').addEventListener('click', function () {
+    var btn = $('py-copy');
+    var text = Python.toText(game.editor.getProgram());
+    var done = function () { btn.textContent = 'Copiat ✓'; setTimeout(function () { btn.textContent = 'Copiază'; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { btn.textContent = 'Nu s-a putut copia'; });
+    }
+  });
 
   // arătăm doar câte blocuri are programul, fără limită sau țintă, ca să nu dăm soluția
   function updateCount(n) {
@@ -513,6 +556,7 @@
       clearTimeout(game.run.timer);
       game.run = null;
       game.editor.highlight(null);
+      highlightPython(null);
       setRunning(false);
     }
   }
@@ -525,6 +569,7 @@
     var ev = res.value;
     var st = run.st;
     game.editor.highlight(ev.id);
+    highlightPython(ev.id);
     if (ev.kind === 'move' || ev.kind === 'win') {
       placeHero(st.r, st.c, st.dir);
       markTrail(st.r, st.c);
@@ -565,6 +610,7 @@
     game.run = null;
     setRunning(false);
     game.editor.highlight(null);
+    highlightPython(null);
 
     if (st.won) {
       $('hero').classList.add('happy');
