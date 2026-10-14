@@ -416,24 +416,31 @@
     if (on && game && game.editor) renderPython(game.editor.getProgram());
   }
 
+  // harta curentă: de unde pornește personajul, încotro privește, unde e comoara
+  function pythonContext() {
+    if (!game || !game.map) return null;
+    return { map: game.map, grid: game.level.maps[game.mapIndex].grid, dir: game.dir, blocks: game.level.blocks };
+  }
+
   function renderPython(prog) {
-    if ($('py-panel').hidden) return;
-    $('py-code').innerHTML = Python.toHtml(prog);
+    if ($('py-panel').hidden || !game || !game.map) return;
+    $('py-code').innerHTML = Python.toHtml(prog, pythonContext());
   }
 
   function highlightPython(id) {
     if ($('py-panel').hidden) return;
     qsa('#py-code .py-line.running').forEach(function (l) { l.classList.remove('running'); });
     if (!id) return;
-    var line = document.querySelector('#py-code .py-line[data-id="' + id + '"]');
-    if (line) line.classList.add('running');
+    var lines = qsa('#py-code .py-line[data-id="' + id + '"]');
+    lines.forEach(function (l) { l.classList.add('running'); });
+    if (lines[0]) lines[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
   $('btn-python').addEventListener('click', function () { setPythonVisible($('py-panel').hidden); });
 
   $('py-copy').addEventListener('click', function () {
     var btn = $('py-copy');
-    var text = Python.toText(game.editor.getProgram());
+    var text = Python.toText(game.editor.getProgram(), pythonContext());
     var done = function () { btn.textContent = 'Copiat ✓'; setTimeout(function () { btn.textContent = 'Copiază'; }, 1500); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done, function () { btn.textContent = 'Nu s-a putut copia'; });
@@ -461,6 +468,7 @@
     game.dir = m.dir;
     renderMapTabs();
     renderBoard();
+    if (game.editor) renderPython(game.editor.getProgram());
   }
 
   function cellSize() {

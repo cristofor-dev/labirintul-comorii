@@ -268,7 +268,7 @@ img { display: block; }
 .segmented button.on { background: var(--surface); box-shadow: var(--sh-sm), 0 0 0 1px var(--border); }
 .game.running #btn-run { opacity: .55; }
 
-.code-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--sh); padding: 16px; }
+.code-box { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--sh); padding: 16px; }
 .code-box h3 { font-size: 1rem; font-weight: 900; margin-bottom: 10px; }
 .program-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .program-head h3 { margin: 0; }
@@ -295,6 +295,7 @@ img { display: block; }
 .py-kw { color: #c084fc; font-weight: 700; }
 .py-fn { color: #60a5fa; }
 .py-num { color: #fbbf24; }
+.py-str { color: #86efac; }
 .py-com { color: #64748b; font-style: italic; }
 .tip { font-size: .82rem; color: var(--muted); margin: 10px 2px 0; }
 
