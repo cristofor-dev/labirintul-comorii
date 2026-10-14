@@ -342,7 +342,7 @@
       },
       onRender: updateCount,
       onLimit: function () {
-        setGuide('Ai folosit toate cele ' + level.maxBlocks + ' blocuri. Poți scrie programul mai scurt, cu o buclă?', 'warn');
+        setGuide('Ai folosit toate blocurile. Poți scrie programul mai scurt, cu o buclă?', 'warn');
         var c = $('block-count');
         c.classList.remove('shake');
         void c.offsetWidth;
@@ -353,11 +353,9 @@
     loadMap(0);
   }
 
-  function updateCount(n, max) {
-    var lvl = game && game.level;
-    if (!lvl) return;
-    $('block-count').innerHTML = 'Blocuri: <b>' + n + (max ? ' / ' + max : '') + '</b>' +
-      '<span class="goal"> · ⭐⭐⭐ cu cel mult ' + lvl.optimal + '</span>';
+  // arătăm doar câte blocuri are programul, fără limită sau țintă, ca să nu dăm soluția
+  function updateCount(n) {
+    $('block-count').innerHTML = 'Blocuri: <b>' + n + '</b>';
   }
 
   function renderMapTabs() {
@@ -564,7 +562,7 @@
     var next = LEVELS[idx + 1];
     var body = '<div class="big-stars">' + starsHtml(stars) + '</div>';
     if (stars < 3) {
-      body += '<p>Ai folosit ' + blocks + ' blocuri. Poți lua 3 stele cu cel mult ' + level.optimal + ' blocuri. Încerci?</p>';
+      body += '<p>Ai folosit ' + blocks + ' blocuri. Poți lua 3 stele cu un program mai scurt. Încerci?</p>';
     } else {
       body += '<p>Program perfect, cu doar ' + blocks + ' blocuri!</p>';
     }

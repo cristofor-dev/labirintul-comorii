@@ -274,7 +274,6 @@ img { display: block; }
 .program-head h3 { margin: 0; }
 .block-count { font-size: .86rem; font-weight: 700; color: var(--muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; }
 .block-count b { color: var(--text); }
-.block-count .goal { color: #b45309; }
 .program-head .btn { margin-left: auto; }
 .tip { font-size: .82rem; color: var(--muted); margin: 10px 2px 0; }
 
