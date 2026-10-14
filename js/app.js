@@ -305,6 +305,50 @@
   $('map-change-avatar').addEventListener('click', showAvatar);
   $('map-logout').addEventListener('click', showLogin);
 
+  // ================= Sunete =================
+  // Generate direct în browser (Web Audio), fără fișiere audio.
+  var audio = null;
+  function audioCtx() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!audio) audio = new AC();
+    if (audio.state === 'suspended') audio.resume();
+    return audio;
+  }
+
+  // „Bonk” scurt: un ton grav care coboară, plus un mic zgomot de impact.
+  function playBump() {
+    var ctx = audioCtx();
+    if (!ctx) return;
+    var t = ctx.currentTime;
+
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(220, t);
+    osc.frequency.exponentialRampToValueAtTime(55, t + 0.22);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.5, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.32);
+
+    var len = Math.floor(ctx.sampleRate * 0.08);
+    var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    var noise = ctx.createBufferSource();
+    var lp = ctx.createBiquadFilter();
+    var ng = ctx.createGain();
+    noise.buffer = buf;
+    lp.type = 'lowpass';
+    lp.frequency.value = 900;
+    ng.gain.value = 0.35;
+    noise.connect(lp).connect(ng).connect(ctx.destination);
+    noise.start(t);
+  }
+
   // ================= Joc =================
   function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
@@ -503,6 +547,7 @@
   }
 
   function bumpHero(ev) {
+    playBump();
     var hero = $('hero');
     hero.style.setProperty('--bx', Engine.DC[game.run.st.dir] * game.cell * 0.28 + 'px');
     hero.style.setProperty('--by', Engine.DR[game.run.st.dir] * game.cell * 0.28 + 'px');
@@ -585,6 +630,7 @@
   }
 
   $('btn-run').addEventListener('click', function () {
+    audioCtx(); // pornește sunetul la click, altfel unele browsere (Safari) îl blochează
     if (!game.run && !startRun()) return;
     game.run.auto = true;
     clearTimeout(game.run.timer);
@@ -592,6 +638,7 @@
   });
 
   $('btn-step').addEventListener('click', function () {
+    audioCtx();
     if (!game.run) {
       if (!startRun()) return;
     } else {
