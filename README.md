@@ -6,3 +6,4 @@ Site static (HTML/CSS/JS, fără build). Progresul se salvează doar în browser
 
 - Rulare locală: `python3 -m http.server` în acest folder, apoi http://localhost:8000
 - Verificare nivele: `node test/test-levels.js`
+- La fiecare publicare, crește numărul `?v=` din `index.html`, ca browserele să ia fișierele noi.
