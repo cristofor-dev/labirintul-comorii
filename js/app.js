@@ -517,9 +517,6 @@
     var run = game.run;
     if (!run) return;
     var st = run.st;
-    var lastId = null;
-    var running = document.querySelector('#workspace .running');
-    if (running) lastId = running.dataset.id;
     game.run = null;
     setRunning(false);
     game.editor.highlight(null);
@@ -538,9 +535,9 @@
       levelWon();
       return;
     }
-    if (lastId) game.editor.flash(lastId, 'err');
+    // nu arătăm care bloc a greșit: copilul urmărește personajul și își dă seama singur
     if (st.failed === 'bump') {
-      setGuide('Au! ' + heroName(profile) + ' s-a lovit de zid. Blocul roșu e cel care l-a dus în zid. Schimbă programul și încearcă din nou.', 'bad');
+      setGuide('Au! ' + heroName(profile) + ' s-a lovit de zid. Schimbă programul și încearcă din nou.', 'bad');
     } else if (st.failed === 'limit') {
       setGuide('Programul pare că nu se mai termină, așa că l-am oprit. Verifică ce se întâmplă în bucle.', 'bad');
     } else {
