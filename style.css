@@ -112,13 +112,6 @@ img { display: block; }
 }
 .known:hover { transform: translateY(-1px); border-color: var(--primary); }
 .known img { width: 34px; height: 34px; object-fit: contain; border-radius: 50%; background: var(--surface-2); }
-.btn-teacher {
-  position: fixed; right: 16px; bottom: 16px; border: 1px solid var(--border); cursor: pointer;
-  background: rgba(255, 255, 255, .7); backdrop-filter: blur(8px); color: var(--muted);
-  border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: .86rem;
-}
-.btn-teacher:hover { color: var(--text); background: #fff; }
-
 /* ---------- Alege personajul ---------- */
 #screen-avatar { padding: 32px 16px; display: grid; place-items: start center; min-height: 100vh; }
 .avatar-panel { width: min(860px, 100%); }

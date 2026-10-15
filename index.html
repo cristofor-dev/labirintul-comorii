@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 
@@ -32,7 +32,6 @@
         <div id="known-list" class="known-list"></div>
       </div>
     </div>
-    <button id="btn-teacher" class="btn-teacher" type="button">👩‍🏫 Profesor</button>
   </section>
 
   <!-- ===== Alege personajul ===== -->
@@ -153,6 +152,7 @@
               <button id="t-export-json" class="btn btn-ghost btn-sm" type="button">⬇ Backup JSON</button>
               <button id="t-import" class="btn btn-ghost btn-sm" type="button">⬆ Import JSON</button>
               <input id="t-import-file" type="file" accept=".json,application/json" hidden>
+              <button id="t-refresh" class="btn btn-ghost btn-sm" type="button" hidden>↻ Actualizează</button>
               <button id="t-change-pin" class="btn btn-ghost btn-sm" type="button">Schimbă PIN</button>
             </div>
           </div>
@@ -163,7 +163,7 @@
               <tbody id="kids-body"></tbody>
             </table>
           </div>
-          <p class="note">Datele sunt salvate doar în acest browser, pe acest calculator. Folosește „Backup JSON” și „Import JSON” ca să aduni progresul de pe mai multe calculatoare.</p>
+          <p id="teacher-note" class="note"></p>
         </div>
       </div>
     </main>
@@ -179,11 +179,13 @@
     </div>
   </div>
 
-  <script src="js/levels.js?v=6"></script>
-  <script src="js/engine.js?v=6"></script>
-  <script src="js/storage.js?v=6"></script>
-  <script src="js/editor.js?v=6"></script>
-  <script src="js/python.js?v=6"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/levels.js?v=7"></script>
+  <script src="js/engine.js?v=7"></script>
+  <script src="js/storage.js?v=7"></script>
+  <script src="js/config.js?v=7"></script>
+  <script src="js/cloud.js?v=7"></script>
+  <script src="js/editor.js?v=7"></script>
+  <script src="js/python.js?v=7"></script>
+  <script src="js/app.js?v=7"></script>
 </body>
 </html>

@@ -29,7 +29,7 @@
   function avatarSrc(p) {
     var a = p && p.avatar;
     if (!a) return PRESETS[0].src;
-    if (a.type === 'upload') return a.data;
+    if (a.type === 'upload') return a.data || PRESETS[0].src; // pozele nu se trimit online
     var preset = PRESETS.filter(function (x) { return x.id === a.id; })[0];
     return (preset || PRESETS[0]).src;
   }
@@ -52,6 +52,11 @@
     if (!Store.saveProfile(profile)) {
       setGuide('Atenție: memoria browserului e plină, progresul nu s-a putut salva. Anunță profesorul.');
     }
+  }
+
+  // trimite progresul copilului online; dacă nu e internet, Cloud reîncearcă singur
+  function syncProfile() {
+    Cloud.queue(profile.name).catch(function () {});
   }
 
   function starsHtml(n, total) {
@@ -102,6 +107,7 @@
   // ================= Autentificare =================
   function showLogin() {
     stopRun();
+    leaveTeacher();
     profile = null;
     Store.setCurrent(null);
     $('login-name').value = '';
@@ -130,10 +136,35 @@
     show('screen-login');
   }
 
+  var loggingIn = false;
+
   function login(name) {
+    if (loggingIn) return;
     profile = Store.getOrCreate(name);
+    if (!Cloud.enabled) { enterGame(); return; }
+    // aducem și progresul de pe alte calculatoare
+    setLoggingIn(true);
+    Cloud.pull(name).then(function (remote) {
+      setLoggingIn(false);
+      if (remote) {
+        Store.mergeProfile(profile, remote);
+        if (remote.worlds && remote.worlds.length) profile.worlds = remote.worlds.slice(); // lumile le deschide profesorul
+      }
+      enterGame();
+    });
+  }
+
+  function setLoggingIn(on) {
+    loggingIn = on;
+    var btn = $('login-form').querySelector('button[type="submit"]');
+    btn.disabled = on;
+    btn.textContent = on ? 'Se încarcă…' : 'Intră în joc ▶';
+  }
+
+  function enterGame() {
     save();
-    Store.setCurrent(name);
+    Store.setCurrent(profile.name);
+    syncProfile();
     fillKid();
     if (!profile.avatar) showAvatar(); else showMap();
   }
@@ -241,6 +272,7 @@
   $('avatar-done').addEventListener('click', function () {
     profile.avatar = pendingAvatar;
     save();
+    syncProfile();
     fillKid();
     showMap();
   });
@@ -652,6 +684,7 @@
     var wasDone = !!profile.progress[level.id];
     Store.recordWin(profile, level.id, stars, blocks, clone(prog));
     save();
+    syncProfile();
     setGuide('Ai găsit comoara! 🎉', 'good');
 
     var idx = LEVELS.indexOf(level);
@@ -745,32 +778,93 @@
   });
 
   // ================= Panou profesor =================
+  // Se deschide doar din adresa site-ului cu #profesor la final; pe ecranul copiilor nu există buton.
+  var TEACHER_HASH = '#profesor';
   var pinMode = 'enter'; // enter | setup | change
+  var teacherPw = null;  // parola online, ținută doar cât e deschis panoul
+  var teacherData = {};
+
+  // De unde vin datele: online (toate calculatoarele) sau doar din acest browser.
+  var Teacher = Cloud.enabled ? {
+    list: function () { return Cloud.teacher.list(teacherPw); },
+    setWorld: function (name, worldId, open) { return Cloud.teacher.setWorld(teacherPw, name, worldId, open); },
+    remove: function (name) {
+      Store.deleteProfile(name); // altfel s-ar trimite din nou de pe acest calculator
+      return Cloud.teacher.remove(teacherPw, name);
+    }
+  } : {
+    list: function () { return Promise.resolve(Store.loadAll()); },
+    setWorld: function (name, worldId, open) {
+      (name ? [name] : Object.keys(Store.loadAll())).forEach(function (n) {
+        var prof = Store.getProfile(n);
+        Store.setWorld(prof, worldId, open);
+        Store.saveProfile(prof);
+      });
+      return Promise.resolve();
+    },
+    remove: function (name) { Store.deleteProfile(name); return Promise.resolve(); }
+  };
 
   function showTeacher() {
-    pinMode = Store.hasPin() ? 'enter' : 'setup';
+    stopRun();
+    teacherPw = null;
+    pinMode = Cloud.enabled || Store.hasPin() ? 'enter' : 'setup';
     preparePin();
     $('teacher-content').hidden = true;
+    $('t-change-pin').textContent = Cloud.enabled ? 'Schimbă parola' : 'Schimbă PIN';
+    $('t-refresh').hidden = !Cloud.enabled;
+    $('teacher-note').textContent = Cloud.enabled
+      ? 'Rezultatele sunt centralizate online, de pe toate calculatoarele. Pozele încărcate de copii rămân doar pe calculatorul lor.'
+      : 'Datele sunt salvate doar în acest browser, pe acest calculator. Folosește „Backup JSON” și „Import JSON” ca să aduni progresul de pe mai multe calculatoare.';
     show('screen-teacher');
     $('pin-1').focus();
   }
 
+  function leaveTeacher() {
+    teacherPw = null;
+    teacherData = {};
+    if (location.hash === TEACHER_HASH) history.replaceState(null, '', location.pathname + location.search);
+  }
+
   function preparePin() {
     $('pin-form').hidden = false;
-    $('pin-1').value = '';
-    $('pin-2').value = '';
     $('pin-error').textContent = '';
     var setup = pinMode !== 'enter';
+    ['pin-1', 'pin-2'].forEach(function (id) {
+      var input = $(id);
+      input.value = '';
+      if (Cloud.enabled) {
+        input.removeAttribute('inputmode');
+        input.removeAttribute('pattern');
+        input.maxLength = 64;
+      }
+    });
     $('pin-2').hidden = !setup;
+    if (Cloud.enabled) {
+      $('pin-1').placeholder = 'Parola';
+      $('pin-2').placeholder = 'Repetă parola';
+      $('pin-title').textContent = setup ? 'Parolă nouă' : 'Parola profesorului';
+      $('pin-help').textContent = setup
+        ? 'Cel puțin 8 caractere. Va fi noua parolă pe toate calculatoarele.'
+        : 'Scrie parola ca să vezi rezultatele tuturor copiilor.';
+      return;
+    }
     $('pin-title').textContent = pinMode === 'change' ? 'PIN nou' : (setup ? 'Alege un PIN de profesor' : 'PIN profesor');
     $('pin-help').textContent = setup
       ? 'Alege un PIN de 4–8 cifre. Îl vei folosi ca să intri în acest panou pe acest calculator.'
       : 'Scrie PIN-ul ca să vezi progresul copiilor.';
   }
 
+  function setPinBusy(on) {
+    var btn = $('pin-form').querySelector('button[type="submit"]');
+    btn.disabled = on;
+    btn.textContent = on ? 'Se încarcă…' : 'Continuă';
+  }
+
   $('pin-form').addEventListener('submit', function (e) {
     e.preventDefault();
     var p1 = $('pin-1').value.trim(), p2 = $('pin-2').value.trim();
+    if (Cloud.enabled) { submitPassword(p1, p2); return; }
     if (pinMode === 'enter') {
       if (!Store.checkPin(p1)) { $('pin-error').textContent = 'PIN greșit.'; $('pin-1').value = ''; return; }
     } else {
@@ -779,10 +873,63 @@
       Store.setPin(p1);
       if (pinMode === 'change') teacherMsg('PIN-ul a fost schimbat.');
     }
-    $('pin-form').hidden = true;
-    $('teacher-content').hidden = false;
-    renderTeacher();
+    loadTeacher();
   });
+
+  function submitPassword(p1, p2) {
+    if (pinMode !== 'change') {
+      if (!p1) return;
+      teacherPw = p1;
+      setPinBusy(true);
+      loadTeacher().then(function () { setPinBusy(false); });
+      return;
+    }
+    if (p1.length < 8) { $('pin-error').textContent = 'Parola trebuie să aibă cel puțin 8 caractere.'; return; }
+    if (p1 !== p2) { $('pin-error').textContent = 'Cele două parole nu sunt la fel.'; return; }
+    setPinBusy(true);
+    Cloud.teacher.changePassword(teacherPw, p1).then(function () {
+      setPinBusy(false);
+      teacherPw = p1;
+      teacherMsg('Parola a fost schimbată.');
+      loadTeacher();
+    }, function (err) {
+      setPinBusy(false);
+      $('pin-error').textContent = 'Parola nu s-a putut schimba: ' + err.message;
+    });
+  }
+
+  var OFFLINE_MSG = 'Nu mă pot conecta la baza de date. Verifică internetul și încearcă din nou.';
+
+  // Citește copiii și afișează tabelul; dacă parola e greșită, revine la formular.
+  function loadTeacher() {
+    return Teacher.list().then(function (data) {
+      teacherData = data || {};
+      $('pin-form').hidden = true;
+      $('teacher-content').hidden = false;
+      renderTeacher();
+    }, function (err) {
+      if (Cloud.isWrongPassword(err)) {
+        teacherPw = null;
+        pinMode = 'enter';
+        preparePin();
+        $('teacher-content').hidden = true;
+        $('pin-error').textContent = 'Parolă greșită.';
+        $('pin-1').focus();
+      } else if ($('teacher-content').hidden) {
+        $('pin-error').textContent = OFFLINE_MSG;
+      } else {
+        teacherMsg(OFFLINE_MSG);
+      }
+    });
+  }
+
+  // rulează o schimbare, apoi reîncarcă tabelul
+  function teacherAction(promise, okMsg) {
+    promise.then(function () {
+      teacherMsg(okMsg);
+      loadTeacher();
+    }, function () { teacherMsg(OFFLINE_MSG); });
+  }
 
   function teacherMsg(text) { $('teacher-msg').textContent = text; }
 
@@ -793,7 +940,7 @@
   }
 
   function renderTeacher() {
-    var all = Store.loadAll();
+    var all = teacherData;
     var names = Object.keys(all).sort(function (a, b) { return a.localeCompare(b, 'ro'); });
 
     var multiWorld = WORLDS.filter(function (w) { return w.available; }).length > 1;
@@ -819,7 +966,8 @@
     var body = $('kids-body');
     body.innerHTML = '';
     if (!names.length) {
-      body.innerHTML = '<tr><td colspan="6" class="empty">Încă nu a intrat niciun copil pe acest calculator.</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="empty">' +
+        (Cloud.enabled ? 'Încă nu a intrat niciun copil.' : 'Încă nu a intrat niciun copil pe acest calculator.') + '</td></tr>';
       return;
     }
     names.forEach(function (n) {
@@ -847,22 +995,19 @@
         b.title = (on ? 'Închide' : 'Deschide') + ' Lumea ' + w.id + ' pentru ' + n;
         b.disabled = w.id === 1;
         b.addEventListener('click', function () {
-          var prof = Store.getProfile(n);
-          Store.setWorld(prof, w.id, !on);
-          Store.saveProfile(prof);
-          teacherMsg('Lumea ' + w.id + ' a fost ' + (on ? 'închisă' : 'deschisă') + ' pentru ' + n + '.');
-          renderTeacher();
+          teacherAction(Teacher.setWorld(n, w.id, !on),
+            'Lumea ' + w.id + ' a fost ' + (on ? 'închisă' : 'deschisă') + ' pentru ' + n + '.');
         });
         toggles.appendChild(b);
       });
       tr.querySelector('.del-kid').addEventListener('click', function () {
         showModal({
           title: 'Ștergi profilul ' + n + '?',
-          body: '<p>Se pierd personajul și progresul acestui copil de pe acest calculator.</p>',
+          body: Cloud.enabled
+            ? '<p>Se pierd toate rezultatele acestui copil, de pe toate calculatoarele.</p>'
+            : '<p>Se pierd personajul și progresul acestui copil de pe acest calculator.</p>',
           actions: [{ label: 'Nu', cls: 'btn-ghost' }, { label: 'Da, șterge', cls: 'btn-danger', onClick: function () {
-            Store.deleteProfile(n);
-            teacherMsg('Profilul ' + n + ' a fost șters.');
-            renderTeacher();
+            teacherAction(Teacher.remove(n), 'Profilul ' + n + ' a fost șters.');
           } }]
         });
       });
@@ -871,14 +1016,9 @@
   }
 
   function bulkWorld(worldId, unlocked) {
-    var all = Store.loadAll();
-    var names = Object.keys(all);
-    names.forEach(function (n) {
-      Store.setWorld(all[n], worldId, unlocked);
-      Store.saveProfile(all[n]);
-    });
-    teacherMsg('Lumea ' + worldId + ' a fost ' + (unlocked ? 'deschisă' : 'închisă') + ' pentru ' + names.length + ' copii.');
-    renderTeacher();
+    var count = Object.keys(teacherData).length;
+    teacherAction(Teacher.setWorld(null, worldId, unlocked),
+      'Lumea ' + worldId + ' a fost ' + (unlocked ? 'deschisă' : 'închisă') + ' pentru ' + count + ' copii.');
   }
 
   function csvCell(v) {
@@ -887,7 +1027,7 @@
   }
 
   $('t-export-csv').addEventListener('click', function () {
-    var all = Store.loadAll();
+    var all = teacherData;
     var rows = [['Copil', 'Nivel atins', 'Nivele terminate', 'Stele', 'Lumi deschise', 'Ultima activitate']];
     Object.keys(all).sort().forEach(function (n) {
       var p = all[n];
@@ -899,7 +1039,7 @@
   });
 
   $('t-export-json').addEventListener('click', function () {
-    download('labirint-backup-' + new Date().toISOString().slice(0, 10) + '.json', Store.exportJSON(), 'application/json');
+    download('labirint-backup-' + new Date().toISOString().slice(0, 10) + '.json', Store.exportJSON(teacherData), 'application/json');
   });
 
   $('t-import').addEventListener('click', function () { $('t-import-file').click(); });
@@ -909,15 +1049,23 @@
     if (!file) return;
     var reader = new FileReader();
     reader.onload = function () {
+      var r;
       try {
-        var r = Store.importJSON(reader.result);
-        teacherMsg('Import reușit: ' + r.added + ' copii noi, ' + r.merged + ' actualizați.');
-        renderTeacher();
+        r = Store.importJSON(reader.result);
       } catch (err) {
         teacherMsg('Importul nu a reușit: ' + err.message);
+        return;
       }
+      var msg = 'Import reușit: ' + r.added + ' copii noi, ' + r.merged + ' actualizați.';
+      // online: profilurile importate pleacă din acest browser spre baza de date
+      teacherAction(Cloud.queue(r.names), msg);
     };
     reader.readAsText(file);
+  });
+
+  $('t-refresh').addEventListener('click', function () {
+    teacherMsg('');
+    loadTeacher();
   });
 
   $('t-change-pin').addEventListener('click', function () {
@@ -927,9 +1075,15 @@
     $('pin-1').focus();
   });
 
-  $('btn-teacher').addEventListener('click', showTeacher);
   $('teacher-back').addEventListener('click', showLogin);
 
+  window.addEventListener('hashchange', function () {
+    if (location.hash === TEACHER_HASH) showTeacher();
+    else if (!$('screen-teacher').hidden) showLogin();
+  });
+
   // ================= Pornire =================
+  var openTeacher = location.hash === TEACHER_HASH; // showLogin() șterge #profesor din adresă
   showLogin();
+  if (openTeacher) showTeacher();
 })();

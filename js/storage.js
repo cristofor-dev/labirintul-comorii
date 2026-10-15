@@ -123,20 +123,33 @@
   function checkPin(pin) { return read(KEY_PIN) === hashPin(pin); }
 
   // ---------- Export / import ----------
-  function exportJSON() {
-    return JSON.stringify({ app: 'labirintul-comorii', version: 1, exported: new Date().toISOString(), profiles: loadAll() }, null, 2);
+  function exportJSON(profiles) {
+    return JSON.stringify({ app: 'labirintul-comorii', version: 1, exported: new Date().toISOString(), profiles: profiles || loadAll() }, null, 2);
   }
 
-  // Unește profilurile importate cu cele existente: păstrează cele mai multe stele și toate lumile deblocate.
+  // Adaugă în dst progresul din src: păstrează cele mai multe stele și toate lumile deblocate.
+  function mergeProfile(dst, src) {
+    Object.keys(src.progress || {}).forEach(function (lvl) {
+      var a = dst.progress[lvl], b = src.progress[lvl];
+      if (!a || (b.stars || 0) > (a.stars || 0)) dst.progress[lvl] = b;
+    });
+    (src.worlds || []).forEach(function (w) { setWorld(dst, w, true); });
+    if (!dst.avatar && src.avatar && (src.avatar.type !== 'upload' || src.avatar.data)) dst.avatar = src.avatar;
+    if ((src.lastSeen || '') > (dst.lastSeen || '')) dst.lastSeen = src.lastSeen;
+    return dst;
+  }
+
+  // Unește profilurile importate cu cele existente.
   function importJSON(text) {
     var data = JSON.parse(text);
     var incoming = data && data.profiles;
     if (!incoming || typeof incoming !== 'object') throw new Error('Fișierul nu conține profiluri.');
     var all = loadAll();
-    var added = 0, merged = 0;
+    var added = 0, merged = 0, names = [];
     Object.keys(incoming).forEach(function (name) {
       var src = incoming[name];
       if (!src || !src.progress || normalizeName(name) !== name) return;
+      names.push(name);
       var dst = all[name];
       if (!dst) {
         all[name] = Object.assign(newProfile(name), src);
@@ -144,23 +157,18 @@
         return;
       }
       merged++;
-      Object.keys(src.progress).forEach(function (lvl) {
-        var a = dst.progress[lvl], b = src.progress[lvl];
-        if (!a || (b.stars || 0) > (a.stars || 0)) dst.progress[lvl] = b;
-      });
-      (src.worlds || []).forEach(function (w) { setWorld(dst, w, true); });
-      if (!dst.avatar && src.avatar) dst.avatar = src.avatar;
-      if ((src.lastSeen || '') > (dst.lastSeen || '')) dst.lastSeen = src.lastSeen;
+      mergeProfile(dst, src);
     });
     if (!saveAll(all)) throw new Error('Nu mai e loc în memoria browserului.');
-    return { added: added, merged: merged };
+    return { added: added, merged: merged, names: names };
   }
 
   var api = {
     normalizeName: normalizeName, loadAll: loadAll, getProfile: getProfile, getOrCreate: getOrCreate,
     saveProfile: saveProfile, deleteProfile: deleteProfile, getCurrent: getCurrent, setCurrent: setCurrent,
     recordWin: recordWin, totalStars: totalStars, isWorldUnlocked: isWorldUnlocked, setWorld: setWorld,
-    hasPin: hasPin, setPin: setPin, checkPin: checkPin, exportJSON: exportJSON, importJSON: importJSON
+    hasPin: hasPin, setPin: setPin, checkPin: checkPin, exportJSON: exportJSON, importJSON: importJSON,
+    mergeProfile: mergeProfile
   };
   root.Store = api;
 })(window);
