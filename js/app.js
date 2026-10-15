@@ -84,6 +84,7 @@
 
   // ================= Fereastră mesaje =================
   function showModal(o) {
+    $('modal').querySelector('.modal-card').className = 'modal-card' + (o.cls ? ' ' + o.cls : '');
     $('modal-art').innerHTML = o.art || '';
     $('modal-title').textContent = o.title || '';
     $('modal-body').innerHTML = o.body || '';
@@ -381,6 +382,24 @@
     noise.start(t);
   }
 
+  // Sirenă scurtă „ni-no, ni-no” pentru BUG DETECTAT.
+  function playSiren() {
+    var ctx = audioCtx();
+    if (!ctx) return;
+    var t = ctx.currentTime;
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    osc.type = 'square';
+    for (var i = 0; i < 4; i++) osc.frequency.setValueAtTime(i % 2 ? 660 : 880, t + i * 0.28);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
+    g.gain.setValueAtTime(0.12, t + 1.04);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.12);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 1.15);
+  }
+
   // ================= Joc =================
   function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
@@ -667,13 +686,37 @@
       return;
     }
     // nu arătăm care bloc a greșit: copilul urmărește personajul și își dă seama singur
+    var why;
     if (st.failed === 'bump') {
+      why = heroName(profile) + ' s-a lovit de zid.';
       setGuide('Au! ' + heroName(profile) + ' s-a lovit de zid. Schimbă programul și încearcă din nou.', 'bad');
     } else if (st.failed === 'limit') {
+      why = 'Programul nu se mai termina, așa că l-am oprit.';
       setGuide('Programul pare că nu se mai termină, așa că l-am oprit. Verifică ce se întâmplă în bucle.', 'bad');
     } else {
+      why = 'Programul s-a terminat, dar ' + heroName(profile) + ' n-a ajuns la comoară.';
       setGuide('Programul s-a terminat, dar comoara e încă departe. Mai adaugă comenzi!', 'warn');
     }
+    // lăsăm întâi copilul să vadă unde s-a oprit personajul, apoi pornește girofarul
+    var level = game.level;
+    setTimeout(function () {
+      if (!game || game.run || game.level !== level) return;
+      showBug(why);
+    }, 500);
+  }
+
+  function showBug(why) {
+    playSiren();
+    var p = document.createElement('p');
+    p.textContent = why;
+    showModal({
+      cls: 'modal-bug',
+      art: '<div class="beacon" aria-hidden="true"><div class="beacon-beam"></div>' +
+        '<div class="beacon-dome"></div><div class="beacon-base"></div></div>',
+      title: 'BUG DETECTAT!',
+      body: p.outerHTML + '<p class="bug-hint">Caută greșeala în program și repar-o!</p>',
+      actions: [{ label: 'Caut greșeala 🔍', cls: 'btn-danger' }]
+    });
   }
 
   function levelWon() {
