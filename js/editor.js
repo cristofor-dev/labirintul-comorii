@@ -37,6 +37,7 @@
     var program = opts.program || [];
     var maxBlocks = opts.maxBlocks || null;
     var activeSlot = 'root';
+    var selectedId = null; // blocul atins ultima dată (evidențiat și în Python)
     var enabled = true;
     var drag = null;
 
@@ -111,6 +112,7 @@
       var m = META[node.type];
       var el = h('div', 'blk cat-' + m.cat + ' t-' + node.type);
       if (inPalette) el.dataset.type = node.type; else el.dataset.id = node.id;
+      if (!inPalette && node.id === selectedId) el.classList.add('selected');
       var del = inPalette ? '' : '<button class="del" type="button" aria-label="Șterge blocul">✕</button>';
 
       if (!node.body) {
@@ -186,6 +188,8 @@
     });
 
     function tapWorkspace(target) {
+      var blk = target.closest('.blk[data-id]');
+      selectedId = blk ? blk.dataset.id : null;
       var head = target.closest('.blk-head');
       if (head) {
         activeSlot = head.parentNode.dataset.id + ':body';
@@ -194,6 +198,7 @@
         activeSlot = slot ? slot.dataset.slot : 'root';
       }
       render();
+      if (opts.onSelect) opts.onSelect(selectedId);
     }
 
     // ---------- Tragere (mouse și touch prin pointer events) ----------
@@ -311,6 +316,13 @@
       setProgram: function (p) { program = p; activeSlot = 'root'; changed(); },
       clear: function () { program.length = 0; activeSlot = 'root'; changed(); },
       count: count,
+      select: function (id) {
+        selectedId = id;
+        var prev = ws.querySelectorAll('.selected');
+        for (var i = 0; i < prev.length; i++) prev[i].classList.remove('selected');
+        var el = id && ws.querySelector('[data-id="' + id + '"]');
+        if (el) el.classList.add('selected');
+      },
       setEnabled: function (on) {
         enabled = on;
         ws.classList.toggle('locked', !on);

@@ -478,7 +478,7 @@
     setGuide((first ? world.intro + ' ' : '') + level.hint);
     $('btn-solution').hidden = !preview;
 
-    setPythonVisible(pythonVisible());
+    setPythonVisible(false); // la fiecare nivel codul Python pornește ascuns
     // elemente noi la fiecare nivel, ca să nu se adune ascultătorii editorului anterior
     ['workspace', 'palette'].forEach(function (id) {
       var old = $(id);
@@ -500,6 +500,10 @@
         updateCount(n, max);
         renderPython(prog);
       },
+      onSelect: function (id) {
+        game.selId = id;
+        markPython('sel', id, true);
+      },
       onLimit: function () {
         setGuide('Ai folosit toate blocurile. Poți scrie programul mai scurt?', 'warn');
         var c = $('block-count');
@@ -513,14 +517,7 @@
   }
 
   // ---------- Codul Python ----------
-  var PY_KEY = 'labirint.showPython';
-
-  function pythonVisible() {
-    try { return localStorage.getItem(PY_KEY) === '1'; } catch (e) { return false; }
-  }
-
   function setPythonVisible(on) {
-    try { localStorage.setItem(PY_KEY, on ? '1' : '0'); } catch (e) { /* doar pentru sesiunea curentă */ }
     $('py-panel').hidden = !on;
     $('btn-python').setAttribute('aria-pressed', on ? 'true' : 'false');
     $('btn-python').classList.toggle('on', on);
@@ -538,6 +535,7 @@
     if ($('py-panel').hidden || !game || !game.map) return;
     $('py-code').innerHTML = Python.toHtml(prog, pythonContext());
     markPythonError(game.bugId);
+    markPython('sel', game.selId, false);
   }
 
   // blocul cu id-ul dat, căutat și în interiorul buclelor
@@ -569,18 +567,20 @@
     return out;
   }
 
-  function markPythonError(id) {
+  function markPythonError(id) { markPython('err', id, true); }
+
+  // marchează în Python liniile unui bloc; o buclă se marchează cu tot cu liniile din interiorul ei
+  function markPython(cls, id, scroll) {
     if ($('py-panel').hidden) return;
-    qsa('#py-code .py-line.err').forEach(function (l) { l.classList.remove('err'); });
+    qsa('#py-code .py-line.' + cls).forEach(function (l) { l.classList.remove(cls); });
     var node = id && findBlock(game.editor.getProgram(), id);
     if (!node) return;
-    // o buclă se marchează cu tot cu liniile din interiorul ei
     var lines = [];
     blockIds(node, []).forEach(function (bid) {
       lines = lines.concat(qsa('#py-code .py-line[data-id="' + bid + '"]'));
     });
-    lines.forEach(function (l) { l.classList.add('err'); });
-    if (lines[0]) scrollInside($('py-code').parentNode, lines[0]);
+    lines.forEach(function (l) { l.classList.add(cls); });
+    if (scroll && lines[0]) scrollInside($('py-code').parentNode, lines[0]);
   }
 
   // derulează doar caseta de cod, nu toată pagina, ca tabla să rămână la vedere
@@ -743,6 +743,9 @@
     }
     resetHero();
     game.bugId = null;
+    game.selId = null;
+    game.editor.select(null);
+    markPython('sel', null);
     game.editor.markError(null);
     markPythonError(null);
     var st = Engine.newState(game.map, game.dir);
