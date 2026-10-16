@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 
@@ -63,6 +63,7 @@
         <button id="map-logout" class="btn btn-ghost" type="button">Ieșire</button>
       </div>
     </header>
+    <div id="preview-bar" class="preview-bar" hidden>👁 Previzualizare profesor: toate nivelele sunt deschise, iar progresul nu se salvează.</div>
     <main id="worlds" class="worlds"></main>
   </section>
 
@@ -109,6 +110,7 @@
           <div class="program-head">
             <h3>Programul tău</h3>
             <span id="block-count" class="block-count"></span>
+            <button id="btn-solution" class="btn btn-ghost btn-sm" type="button" hidden>💡 Soluția</button>
             <button id="btn-python" class="btn btn-ghost btn-sm btn-python" type="button" aria-pressed="false" aria-controls="py-panel">🐍 Python</button>
             <button id="btn-clear" class="btn btn-ghost btn-sm" type="button">Șterge tot</button>
           </div>
@@ -144,9 +146,12 @@
       </form>
 
       <div id="teacher-content" hidden>
+        <div class="panel missions-panel">
+          <h3>Misiuni</h3>
+          <div id="missions" class="missions"></div>
+        </div>
         <div class="panel">
           <div class="teacher-tools">
-            <div class="tool-group" id="bulk-worlds"></div>
             <div class="tool-group">
               <button id="t-export-csv" class="btn btn-ghost btn-sm" type="button">⬇ Export CSV</button>
               <button id="t-export-json" class="btn btn-ghost btn-sm" type="button">⬇ Backup JSON</button>
@@ -159,7 +164,7 @@
           <p id="teacher-msg" class="msg" role="status"></p>
           <div class="table-wrap">
             <table id="kids-table" class="kids-table">
-              <thead><tr><th>Copil</th><th>Nivel atins</th><th>⭐</th><th>Lumi deschise</th><th>Ultima dată</th><th></th></tr></thead>
+              <thead><tr><th>Copil</th><th>Nivel atins</th><th>⭐</th><th>Misiuni deschise</th><th>Ultima dată</th><th></th></tr></thead>
               <tbody id="kids-body"></tbody>
             </table>
           </div>
@@ -179,13 +184,13 @@
     </div>
   </div>
 
-  <script src="js/levels.js?v=8"></script>
-  <script src="js/engine.js?v=8"></script>
-  <script src="js/storage.js?v=8"></script>
-  <script src="js/config.js?v=8"></script>
-  <script src="js/cloud.js?v=8"></script>
-  <script src="js/editor.js?v=8"></script>
-  <script src="js/python.js?v=8"></script>
-  <script src="js/app.js?v=8"></script>
+  <script src="js/levels.js?v=9"></script>
+  <script src="js/engine.js?v=9"></script>
+  <script src="js/storage.js?v=9"></script>
+  <script src="js/config.js?v=9"></script>
+  <script src="js/cloud.js?v=9"></script>
+  <script src="js/editor.js?v=9"></script>
+  <script src="js/python.js?v=9"></script>
+  <script src="js/app.js?v=9"></script>
 </body>
 </html>

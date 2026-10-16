@@ -42,6 +42,19 @@ if (loop.failed !== 'limit') { failures++; console.log('  ✗ bucla infinită nu
 var empty = Engine.runToEnd(Engine.fromCompact([['repeatUntil', []]]), map1, 1);
 if (empty.failed !== 'limit') { failures++; console.log('  ✗ bucla goală nu e oprită'); }
 
+// Obstacolele: în lavă/apă cazi, de bolovan te lovești, pe pod treci.
+var field = Engine.parseGrid(['#####', '#SLT#', '#PB.#', '#####']);
+var lava = Engine.runToEnd(Engine.fromCompact([['forward']]), field, 1);
+if (lava.failed !== 'hazard' || lava.hazard !== 'lava') { failures++; console.log('  ✗ căderea în lavă nu e detectată'); }
+var rock = Engine.runToEnd(Engine.fromCompact([['turnRight'], ['forward']]), field, 1);
+if (rock.failed !== 'bump' || rock.bumped !== 'P') { failures++; console.log('  ✗ lovirea de bolovan nu e detectată'); }
+var bridge = Engine.runToEnd(Engine.fromCompact([['right'], ['down'], ['right'], ['up']]),
+  Engine.parseGrid(['#####', '#SAT#', '#.B.#', '#####']), 1);
+if (bridge.failed !== 'hazard') { failures++; console.log('  ✗ apa nu e detectată'); }
+var cross = Engine.runToEnd(Engine.fromCompact([['down'], ['right'], ['right'], ['up']]),
+  Engine.parseGrid(['#####', '#SAT#', '#.B.#', '#####']), 1);
+if (!cross.won) { failures++; console.log('  ✗ podul nu se poate traversa'); }
+
 if (failures) {
   console.log('\n' + failures + ' probleme.');
   process.exit(1);

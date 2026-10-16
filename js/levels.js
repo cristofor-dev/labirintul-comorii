@@ -1,17 +1,20 @@
-// Nivelele jocului. Hartă: '#' zid, '.' drum, 'S' start, 'T' comoară.
+// Nivelele jocului, grupate pe misiuni. Hartă: '#' zid, '.' drum, 'S' start, 'T' comoară,
+// 'P' bolovan (te lovești de el), 'L' lavă și 'A' apă (cazi în ele), 'B' pod.
 // dir = direcția de start (0 sus, 1 dreapta, 2 jos, 3 stânga).
-// available: false = lumea e încă în lucru și nu apare pe hartă.
+// Misiuni: în cod se numesc „world” (așa sunt salvate și online); number = numărul misiunii din
+// parcursul Academiei (prima misiune din joc e Misiunea #2, Navigatorul).
+// available: false = misiunea e încă în lucru și nu apare pe hartă.
   // optimal = nr. de blocuri pentru 3 stele; maxBlocks = limita (null = fără limită).
 // solution = soluția de referință (format compact, vezi Engine.fromCompact), verificată de test/test-levels.js.
 (function (root) {
   'use strict';
 
   var WORLDS = [
-    { id: 1, name: 'Primul program', color: '#6366f1', icon: '🧭', available: true,
+    { id: 1, number: 2, name: 'Navigatorul', color: '#6366f1', icon: '🧭', available: true,
       intro: 'Un program este o listă de comenzi pe care personajul le face, una după alta.' },
-    { id: 2, name: 'Bucle', color: '#f59e0b', icon: '🔁', available: false,
+    { id: 2, number: 3, name: 'Bucle', color: '#f59e0b', icon: '🔁', available: false,
       intro: 'Bucla „Repetă” face aceiași pași de mai multe ori, ca să scrii mai puțin.' },
-    { id: 3, name: 'Condiții', color: '#10b981', icon: '❓', available: false,
+    { id: 3, number: 4, name: 'Condiții', color: '#10b981', icon: '❓', available: false,
       intro: 'Cu „Dacă” personajul se uită în jur și decide singur ce face.' }
   ];
 
@@ -19,7 +22,7 @@
   var MOVE_REL = ['forward', 'turnLeft', 'turnRight'];
 
   var LEVELS = [
-    // ---------------- Lumea 1: secvențe ----------------
+    // ---------------- Misiunea 2 (Navigatorul): secvențe ----------------
     { id: 1, world: 1, name: 'Primii pași',
       hint: 'Apasă pe săgeata ➡ de 4 ori ca să pui comenzile în program, apoi apasă „Pornește”.',
       blocks: MOVE_ABS, optimal: 4, maxBlocks: null,
@@ -80,8 +83,81 @@
       solution: [['forward'], ['forward'], ['turnRight'], ['forward'], ['turnLeft'], ['forward'], ['forward'],
         ['turnRight'], ['forward'], ['forward']] },
 
-    // ---------------- Lumea 2: bucle ----------------
-    { id: 6, world: 2, name: 'Drumul lung',
+    // Nivelele 6–10: câmp deschis cu obstacole de ocolit.
+    { id: 6, world: 1, name: 'Lava fierbinte',
+      hint: 'Atenție, lavă! 🔥 Dacă eroul calcă pe ea, programul are un bug. Ocolește lava pe lângă ea.',
+      blocks: MOVE_REL, optimal: 9, maxBlocks: null,
+      maps: [{ dir: 1, grid: [
+        '#######',
+        '#.....#',
+        '#S.L.T#',
+        '#.....#',
+        '#######'] }],
+      solution: [['forward'], ['turnLeft'], ['forward'], ['turnRight'], ['forward'], ['forward'], ['forward'],
+        ['turnRight'], ['forward']] },
+
+    { id: 7, world: 1, name: 'Podul peste lac',
+      hint: 'Lacul taie câmpul în două și eroul nu știe să înoate! 🌊 Găsește podul de lemn și treci pe el.',
+      blocks: MOVE_REL, optimal: 11, maxBlocks: null,
+      maps: [{ dir: 1, grid: [
+        '########',
+        '#S..A..#',
+        '#...A..#',
+        '#...B..#',
+        '#...A.T#',
+        '########'] }],
+      solution: [['forward'], ['forward'], ['turnRight'], ['forward'], ['forward'], ['turnLeft'], ['forward'],
+        ['forward'], ['forward'], ['turnRight'], ['forward']] },
+
+    { id: 8, world: 1, name: 'Bolovani și lavă',
+      hint: 'Bolovanii nu se mișcă din loc, iar lava arde! Caută un drum printre ele și numără bine pătrățelele.',
+      blocks: MOVE_REL, optimal: 13, maxBlocks: null,
+      maps: [{ dir: 1, grid: [
+        '########',
+        '#S..L..#',
+        '#.P.L.P#',
+        '#...P..#',
+        '#LL...L#',
+        '#..P..T#',
+        '########'] }],
+      solution: [['forward'], ['forward'], ['turnRight'], ['forward'], ['forward'], ['forward'], ['turnLeft'],
+        ['forward'], ['forward'], ['turnRight'], ['forward'], ['turnLeft'], ['forward']] },
+
+    { id: 9, world: 1, name: 'Râul de foc',
+      hint: 'Un râu de lavă taie drumul! Singura trecere e podul din mijloc. Ocolește bolovanii ca să ajungi la el.',
+      blocks: MOVE_REL, optimal: 16, maxBlocks: null,
+      maps: [{ dir: 1, grid: [
+        '#########',
+        '#S..P...#',
+        '#.P...P.#',
+        '#LLLBLLL#',
+        '#.P...P.#',
+        '#...P..T#',
+        '#########'] }],
+      solution: [['forward'], ['forward'], ['turnRight'], ['forward'], ['turnLeft'], ['forward'], ['turnRight'],
+        ['forward'], ['forward'], ['turnLeft'], ['forward'], ['turnRight'], ['forward'], ['turnLeft'],
+        ['forward'], ['forward']] },
+
+    { id: 10, world: 1, name: 'Vulcanul',
+      hint: 'Marea provocare: vulcanul! 🌋 Ziduri, lavă, bolovani și apă. Urmărește întâi drumul cu degetul pe ecran, apoi scrie programul.',
+      blocks: MOVE_REL, optimal: 18, maxBlocks: null,
+      maps: [{ dir: 2, grid: [
+        '#########',
+        '#S#..L..#',
+        '#.#.P.A.#',
+        '#...#.A.#',
+        '#LL.#...#',
+        '#...LLL.#',
+        '#.P....P#',
+        '#..AA...#',
+        '#P.....T#',
+        '#########'] }],
+      solution: [['forward'], ['forward'], ['turnLeft'], ['forward'], ['forward'], ['turnRight'], ['forward'],
+        ['forward'], ['forward'], ['turnLeft'], ['forward'], ['forward'], ['forward'], ['turnRight'],
+        ['forward'], ['forward'], ['turnLeft'], ['forward']] },
+
+    // ---------------- Misiunea 3: bucle (în lucru, ascunsă) ----------------
+    { id: 11, world: 2, name: 'Drumul lung',
       hint: 'Pune un bloc „Repetă”, schimbă numărul cu + și −, apoi pune „Înainte” înăuntrul lui.',
       blocks: MOVE_REL.concat(['repeat']), optimal: 2, maxBlocks: 3,
       maps: [{ dir: 1, grid: [
@@ -90,7 +166,7 @@
         '###########'] }],
       solution: [['repeat', 8, [['forward']]]] },
 
-    { id: 7, world: 2, name: 'Scările',
+    { id: 12, world: 2, name: 'Scările',
       hint: 'Fiecare treaptă e la fel: un pas, o rotire, un pas, o rotire. Pune o treaptă într-un „Repetă”.',
       blocks: MOVE_REL.concat(['repeat']), optimal: 5, maxBlocks: 6,
       maps: [{ dir: 1, grid: [
@@ -103,7 +179,7 @@
         '#######'] }],
       solution: [['repeat', 4, [['forward'], ['turnRight'], ['forward'], ['turnLeft']]]] },
 
-    { id: 8, world: 2, name: 'Colțul cetății',
+    { id: 13, world: 2, name: 'Colțul cetății',
       hint: 'Poți folosi mai multe blocuri „Repetă”, unul după altul.',
       blocks: MOVE_REL.concat(['repeat']), optimal: 5, maxBlocks: 6,
       maps: [{ dir: 1, grid: [
@@ -116,7 +192,7 @@
         '########'] }],
       solution: [['repeat', 5, [['forward']]], ['turnRight'], ['repeat', 4, [['forward']]]] },
 
-    { id: 9, world: 2, name: 'Muntele',
+    { id: 14, world: 2, name: 'Muntele',
       hint: 'Urcarea are trei trepte la fel, coborârea tot trei. Două bucle și ești sus... apoi jos!',
       blocks: MOVE_REL.concat(['repeat']), optimal: 10, maxBlocks: 11,
       maps: [{ dir: 1, grid: [
@@ -129,7 +205,7 @@
       solution: [['repeat', 3, [['turnLeft'], ['forward'], ['turnRight'], ['forward']]],
         ['repeat', 3, [['forward'], ['turnRight'], ['forward'], ['turnLeft']]]] },
 
-    { id: 10, world: 2, name: 'Turul cetății',
+    { id: 15, world: 2, name: 'Turul cetății',
       hint: 'Provocare: un „Repetă” poate sta în alt „Repetă”! Ce se repetă de 3 ori?',
       blocks: MOVE_REL.concat(['repeat']), optimal: 4, maxBlocks: 5,
       maps: [{ dir: 1, grid: [
@@ -144,8 +220,8 @@
         '#########'] }],
       solution: [['repeat', 3, [['repeat', 6, [['forward']]], ['turnRight']]]] },
 
-    // ---------------- Lumea 3: condiții ----------------
-    { id: 11, world: 3, name: 'Până la comoară',
+    // ---------------- Misiunea 4: condiții (în lucru, ascunsă) ----------------
+    { id: 16, world: 3, name: 'Până la comoară',
       hint: '„Repetă până la comoară” merge oricât e nevoie. Același program trebuie să meargă pe două drumuri de lungimi diferite!',
       blocks: MOVE_REL.concat(['repeatUntil']), optimal: 2, maxBlocks: 2,
       maps: [
@@ -159,7 +235,7 @@
           '#############'] }],
       solution: [['repeatUntil', [['forward']]]] },
 
-    { id: 12, world: 3, name: 'Spirala',
+    { id: 17, world: 3, name: 'Spirala',
       hint: 'Blocul „Dacă” verifică ceva. Dacă e drum la stânga, rotește-te la stânga. Apoi fă un pas. Și tot așa, până la comoară.',
       blocks: MOVE_REL.concat(['repeatUntil', 'if']), optimal: 4, maxBlocks: 5,
       maps: [{ dir: 1, grid: [
@@ -172,7 +248,7 @@
         '#######'] }],
       solution: [['repeatUntil', [['if', 'left', [['turnLeft']]], ['forward']]]] },
 
-    { id: 13, world: 3, name: 'Dacă... altfel',
+    { id: 18, world: 3, name: 'Dacă... altfel',
       hint: '„Dacă e drum în față”, mergi înainte. „Altfel” (când ai zid în față), rotește-te. Programul trebuie să meargă pe ambele hărți!',
       blocks: MOVE_REL.concat(['repeatUntil', 'ifElse']), optimal: 4, maxBlocks: 5,
       maps: [
@@ -196,7 +272,7 @@
           '#########'] }],
       solution: [['repeatUntil', [['ifElse', 'front', [['forward']], [['turnRight']]]]]] },
 
-    { id: 14, world: 3, name: 'Stânga sau dreapta?',
+    { id: 19, world: 3, name: 'Stânga sau dreapta?',
       hint: 'Când ai zid în față, uită-te: dacă e drum la stânga, mergi la stânga, altfel la dreapta. Poți pune un „Dacă” în alt „Dacă”!',
       blocks: MOVE_REL.concat(['repeatUntil', 'ifElse']), optimal: 6, maxBlocks: 7,
       maps: [{ dir: 1, grid: [
@@ -211,7 +287,7 @@
       solution: [['repeatUntil', [['ifElse', 'front', [['forward']],
         [['ifElse', 'left', [['turnLeft']], [['turnRight']]]]]]]] },
 
-    { id: 15, world: 3, name: 'Marele labirint',
+    { id: 20, world: 3, name: 'Marele labirint',
       hint: 'Secretul exploratorilor: ține mereu „mâna stângă” pe zid. Dacă e drum la stânga, ia-o la stânga; altfel, dacă e drum în față, mergi înainte; altfel rotește-te la dreapta.',
       blocks: MOVE_REL.concat(['repeatUntil', 'if', 'ifElse']), optimal: 7, maxBlocks: 9,
       maps: [{ dir: 1, grid: [

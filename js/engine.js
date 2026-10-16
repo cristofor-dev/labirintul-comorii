@@ -10,20 +10,34 @@
   var ABS_DIR = { up: 0, right: 1, down: 2, left: 3 };
   var CONTAINERS = { repeat: 1, repeatUntil: 1, if: 1, ifElse: 1 };
 
+  // Obstacole: 'P' bolovan (te lovești de el, ca de zid); 'L' lavă și 'A' apă (cazi în ele).
+  // 'B' e un pod: se poate merge pe el.
+  var BLOCKED = { '#': 1, P: 1 };
+  var HAZARDS = { L: 'lava', A: 'water' };
+  var KEEP = { '#': 1, T: 1, P: 1, L: 1, A: 1, B: 1 };
+
   function parseGrid(rows) {
     var start = null, treasure = null;
     var cells = rows.map(function (line, r) {
       return line.split('').map(function (ch, c) {
         if (ch === 'S') start = { r: r, c: c };
         if (ch === 'T') treasure = { r: r, c: c };
-        return ch === '#' ? '#' : (ch === 'T' ? 'T' : '.');
+        return KEEP[ch] ? ch : '.';
       });
     });
     return { cells: cells, rows: cells.length, cols: cells[0].length, start: start, treasure: treasure };
   }
 
+  function inside(map, r, c) {
+    return r >= 0 && c >= 0 && r < map.rows && c < map.cols;
+  }
+
   function isOpen(map, r, c) {
-    return r >= 0 && c >= 0 && r < map.rows && c < map.cols && map.cells[r][c] !== '#';
+    return inside(map, r, c) && !BLOCKED[map.cells[r][c]];
+  }
+
+  function hazardAt(map, r, c) {
+    return inside(map, r, c) ? HAZARDS[map.cells[r][c]] || null : null;
   }
 
   function newState(map, dir) {
@@ -38,7 +52,8 @@
 
   function pathAhead(st, cond) {
     var d = lookDir(st, cond);
-    return isOpen(st.map, st.r + DR[d], st.c + DC[d]);
+    var r = st.r + DR[d], c = st.c + DC[d];
+    return isOpen(st.map, r, c) && !hazardAt(st.map, r, c);
   }
 
   function tick(st) {
@@ -54,10 +69,17 @@
     var nr = st.r + DR[st.dir], nc = st.c + DC[st.dir];
     if (!isOpen(st.map, nr, nc)) {
       st.failed = 'bump';
+      st.bumped = inside(st.map, nr, nc) ? st.map.cells[nr][nc] : '#'; // '#' zid sau 'P' bolovan
       return { id: node.id, kind: 'bump', r: nr, c: nc };
     }
     st.r = nr;
     st.c = nc;
+    var hazard = hazardAt(st.map, nr, nc);
+    if (hazard) {
+      st.failed = 'hazard';
+      st.hazard = hazard;
+      return { id: node.id, kind: 'fall', hazard: hazard };
+    }
     if (st.map.cells[nr][nc] === 'T') st.won = true;
     return { id: node.id, kind: st.won ? 'win' : 'move' };
   }
@@ -168,12 +190,12 @@
     var st = newState(map, dir);
     var gen = runList(program, st);
     while (!gen.next().done) { /* consumă pașii */ }
-    return { won: st.won, failed: st.failed || (st.won ? null : 'ended'), r: st.r, c: st.c, steps: st.steps };
+    return { won: st.won, failed: st.failed || (st.won ? null : 'ended'), hazard: st.hazard || null, bumped: st.bumped || null, r: st.r, c: st.c, steps: st.steps };
   }
 
   var api = {
     DR: DR, DC: DC, CONTAINERS: CONTAINERS, STEP_LIMIT: STEP_LIMIT,
-    parseGrid: parseGrid, isOpen: isOpen, newState: newState, run: runList,
+    parseGrid: parseGrid, isOpen: isOpen, hazardAt: hazardAt, newState: newState, run: runList,
     countBlocks: countBlocks, usedTypes: usedTypes, makeNode: makeNode,
     fromCompact: fromCompact, runToEnd: runToEnd
   };

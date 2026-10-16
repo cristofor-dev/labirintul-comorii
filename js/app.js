@@ -16,6 +16,10 @@
 
   var profile = null;
   var game = null; // { level, mapIndex, map, editor, run }
+  var preview = null; // { world } cât timp profesorul previzualizează o misiune
+
+  function missionLabel(w) { return 'Misiunea ' + w.number; }
+  function worldById(id) { return WORLDS.filter(function (w) { return w.id === id; })[0]; }
 
   function $(id) { return document.getElementById(id); }
   function qsa(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
@@ -49,6 +53,7 @@
   }
 
   function save() {
+    if (preview) return; // previzualizarea profesorului nu se salvează
     if (!Store.saveProfile(profile)) {
       setGuide('Atenție: memoria browserului e plină, progresul nu s-a putut salva. Anunță profesorul.');
     }
@@ -56,6 +61,7 @@
 
   // trimite progresul copilului online; dacă nu e internet, Cloud reîncearcă singur
   function syncProfile() {
+    if (preview) return;
     Cloud.queue(profile.name).catch(function () {});
   }
 
@@ -279,10 +285,12 @@
   });
 
   // ================= Harta nivelelor =================
-  function worldAvailable(id) { return !!WORLDS[id - 1].available; }
+  function worldAvailable(id) { return !!worldById(id).available; }
 
   function levelUnlocked(level) {
-    if (!worldAvailable(level.world) || !Store.isWorldUnlocked(profile, level.world)) return false;
+    if (!worldAvailable(level.world)) return false;
+    if (preview) return true; // profesorul vede toate nivelele
+    if (!Store.isWorldUnlocked(profile, level.world)) return false;
     var idx = LEVELS.indexOf(level);
     var prev = LEVELS[idx - 1];
     if (!prev || prev.world !== level.world) return true;
@@ -293,12 +301,16 @@
     stopRun();
     fillKid();
     $('map-stars').textContent = Store.totalStars(profile);
+    $('preview-bar').hidden = !preview;
+    $('map-change-avatar').hidden = !!preview;
+    $('map-logout').textContent = preview ? '← Panoul profesorului' : 'Ieșire';
     var box = $('worlds');
     box.innerHTML = '';
     WORLDS.forEach(function (w) {
       var levels = LEVELS.filter(function (l) { return l.world === w.id; });
-      if (!w.available) return; // lumile încă în lucru nu apar deloc pe hartă
-      var open = Store.isWorldUnlocked(profile, w.id);
+      if (!w.available) return; // misiunile încă în lucru nu apar deloc pe hartă
+      if (preview && w.id !== preview.world) return;
+      var open = !!preview || Store.isWorldUnlocked(profile, w.id);
       var done = levels.filter(function (l) { return profile.progress[l.id]; }).length;
       var stars = levels.reduce(function (s, l) { return s + ((profile.progress[l.id] || {}).stars || 0); }, 0);
       var sec = document.createElement('section');
@@ -306,12 +318,12 @@
       sec.style.setProperty('--world', w.color);
       sec.innerHTML =
         '<div class="world-head"><span class="world-icon">' + w.icon + '</span>' +
-        '<div class="world-title"><span class="eyebrow">Lumea ' + w.id + '</span><h2>' + w.name + '</h2><p>' + w.intro + '</p></div>' +
+        '<div class="world-title"><span class="eyebrow">' + missionLabel(w) + '</span><h2>' + w.name + '</h2><p>' + w.intro + '</p></div>' +
         '<div class="world-progress"><div class="wp-top"><span>' + done + ' din ' + levels.length + ' nivele</span>' +
         '<span class="wp-stars">★ ' + stars + '/' + levels.length * 3 + '</span></div>' +
         '<div class="bar"><span style="width:' + Math.round(done / levels.length * 100) + '%"></span></div></div></div>' +
         '<div class="level-grid"></div>' +
-        (open ? '' : '<div class="world-lock">🔒 Lumea se deschide când îți dă voie profesorul.</div>');
+        (open ? '' : '<div class="world-lock">🔒 Misiunea se deschide când îți dă voie profesorul.</div>');
       var grid = sec.querySelector('.level-grid');
       var current = true;
       levels.forEach(function (l) {
@@ -336,7 +348,9 @@
   }
 
   $('map-change-avatar').addEventListener('click', showAvatar);
-  $('map-logout').addEventListener('click', showLogin);
+  $('map-logout').addEventListener('click', function () {
+    if (preview) exitPreview(); else showLogin();
+  });
 
   // ================= Sunete =================
   // Generate direct în browser (Web Audio), fără fișiere audio.
@@ -382,6 +396,49 @@
     noise.start(t);
   }
 
+  function noiseBurst(ctx, t, dur, type, from, to, vol) {
+    var len = Math.floor(ctx.sampleRate * dur);
+    var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    var src = ctx.createBufferSource();
+    var f = ctx.createBiquadFilter();
+    var g = ctx.createGain();
+    src.buffer = buf;
+    f.type = type;
+    f.frequency.setValueAtTime(from, t);
+    f.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f).connect(g).connect(ctx.destination);
+    src.start(t);
+  }
+
+  // „Ssss” de lavă: zgomot înalt care se stinge încet.
+  function playSizzle() {
+    var ctx = audioCtx();
+    if (!ctx) return;
+    noiseBurst(ctx, ctx.currentTime, 0.9, 'highpass', 2500, 5000, 0.25);
+  }
+
+  // „Pleosc” în apă: un bloop care urcă, plus stropi.
+  function playSplash() {
+    var ctx = audioCtx();
+    if (!ctx) return;
+    var t = ctx.currentTime;
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(180, t);
+    osc.frequency.exponentialRampToValueAtTime(700, t + 0.15);
+    g.gain.setValueAtTime(0.35, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.22);
+    noiseBurst(ctx, t + 0.05, 0.5, 'bandpass', 1800, 600, 0.3);
+  }
+
   // Sirenă scurtă „ni-no, ni-no” pentru BUG DETECTAT.
   function playSiren() {
     var ctx = audioCtx();
@@ -413,11 +470,12 @@
     stopRun();
     var saved = profile.drafts[level.id] || (profile.progress[level.id] || {}).program || [];
     game = { level: level, mapIndex: 0, map: null, editor: null, run: null };
-    var world = WORLDS[level.world - 1];
+    var world = worldById(level.world);
     $('game-title').textContent = 'Nivelul ' + level.id + ' · ' + level.name;
     document.documentElement.style.setProperty('--world', world.color);
     var first = LEVELS.filter(function (l) { return l.world === level.world; })[0] === level;
     setGuide((first ? world.intro + ' ' : '') + level.hint);
+    $('btn-solution').hidden = !preview;
 
     setPythonVisible(pythonVisible());
     // elemente noi la fiecare nivel, ca să nu se adune ascultătorii editorului anterior
@@ -529,6 +587,9 @@
     return Math.max(24, Math.floor(Math.min(w / game.map.cols, maxH / game.map.rows, 68)));
   }
 
+  // obstacolele de pe hartă (vezi levels.js)
+  var CELL_CLASS = { P: ' rock', L: ' lava', A: ' water', B: ' bridge' };
+
   function renderBoard() {
     var map = game.map;
     var size = cellSize();
@@ -541,8 +602,9 @@
       for (var c = 0; c < map.cols; c++) {
         var ch = map.cells[r][c];
         var cell = document.createElement('div');
-        cell.className = 'cell ' + (ch === '#' ? 'wall w' + ((r * 7 + c * 3) % 3) : 'path');
+        cell.className = 'cell ' + (ch === '#' ? 'wall w' + ((r * 7 + c * 3) % 3) : 'path' + (CELL_CLASS[ch] || ''));
         cell.dataset.rc = r + ',' + c;
+        if (ch === 'L' || ch === 'A') cell.style.setProperty('--d', -((r * 5 + c * 3) % 7) * 0.3 + 's');
         if (ch === 'T') {
           cell.classList.add('treasure');
           cell.innerHTML = '<img src="assets/comoara.svg" alt="Comoara">';
@@ -572,9 +634,10 @@
   }
 
   function resetHero() {
-    qsa('#board .trail, #board .bumped').forEach(function (c) { c.classList.remove('trail', 'bumped'); });
+    clearTimeout(game.fallTimer);
+    qsa('#board .trail, #board .bumped, #board .splash').forEach(function (c) { c.classList.remove('trail', 'bumped', 'splash'); });
     var hero = $('hero');
-    if (hero) hero.classList.remove('bump', 'happy');
+    if (hero) hero.classList.remove('bump', 'happy', 'fall', 'fall-lava', 'fall-water');
     placeHero(game.map.start.r, game.map.start.c, game.dir, true);
     markTrail(game.map.start.r, game.map.start.c);
   }
@@ -639,6 +702,9 @@
     } else if (ev.kind === 'bump') {
       placeHero(st.r, st.c, st.dir);
       bumpHero(ev);
+    } else if (ev.kind === 'fall') {
+      placeHero(st.r, st.c, st.dir);
+      fallHero(ev.hazard, st.r, st.c);
     }
     if (st.won || st.failed) {
       clearTimeout(run.timer);
@@ -660,6 +726,18 @@
     hero.classList.add('bump');
     var cell = document.querySelector('#board [data-rc="' + ev.r + ',' + ev.c + '"]');
     if (cell) cell.classList.add('bumped');
+  }
+
+  // eroul calcă în lavă sau în apă: se scufundă, cu sfârâit sau plescăit
+  function fallHero(hazard, r, c) {
+    var hero = $('hero');
+    clearTimeout(game.fallTimer);
+    game.fallTimer = setTimeout(function () {
+      if (hazard === 'lava') playSizzle(); else playSplash();
+      hero.classList.add('fall', 'fall-' + hazard);
+      var cell = document.querySelector('#board [data-rc="' + r + ',' + c + '"]');
+      if (cell) cell.classList.add('splash');
+    }, speed() * 0.6);
   }
 
   function finishRun() {
@@ -688,8 +766,14 @@
     // nu arătăm care bloc a greșit: copilul urmărește personajul și își dă seama singur
     var why;
     if (st.failed === 'bump') {
-      why = heroName(profile) + ' s-a lovit de zid.';
-      setGuide('Au! ' + heroName(profile) + ' s-a lovit de zid. Schimbă programul și încearcă din nou.', 'bad');
+      var what = st.bumped === 'P' ? 'un bolovan' : 'zid';
+      why = heroName(profile) + ' s-a lovit de ' + what + '.';
+      setGuide('Au! ' + heroName(profile) + ' s-a lovit de ' + what + '. Schimbă programul și încearcă din nou.', 'bad');
+    } else if (st.failed === 'hazard') {
+      var where = st.hazard === 'lava' ? 'în lavă' : 'în apă';
+      why = heroName(profile) + ' a călcat ' + where + '.';
+      setGuide((st.hazard === 'lava' ? 'Au, frige! ' : 'Pleosc! ') + heroName(profile) + ' a călcat ' + where +
+        '. Găsește un drum care ocolește obstacolele.', 'bad');
     } else if (st.failed === 'limit') {
       why = 'Programul nu se mai termina, așa că l-am oprit.';
       setGuide('Programul pare că nu se mai termină, așa că l-am oprit. Verifică ce se întâmplă în bucle.', 'bad');
@@ -702,7 +786,7 @@
     setTimeout(function () {
       if (!game || game.run || game.level !== level) return;
       showBug(why);
-    }, 500);
+    }, st.failed === 'hazard' ? 1100 : 500);
   }
 
   function showBug(why) {
@@ -741,10 +825,11 @@
     var actions = [{ label: 'Mai încerc', cls: 'btn-ghost', onClick: resetHero },
       { label: 'Harta', cls: 'btn-ghost', onClick: showMap }];
 
-    if (next && next.world !== level.world && !worldAvailable(next.world)) {
-      body += '<p class="world-done">Ai terminat Lumea ' + level.world + '! Ești un adevărat Erou Isteț! 🏆</p>';
+    var mission = missionLabel(worldById(level.world));
+    if (next && next.world !== level.world && (preview || !worldAvailable(next.world))) {
+      body += '<p class="world-done">Ai terminat ' + mission + '! Ești un adevărat Erou Isteț! 🏆</p>';
     } else if (next && next.world !== level.world && !Store.isWorldUnlocked(profile, next.world)) {
-      body += '<p class="world-done">Ai terminat Lumea ' + level.world + '! 🏆 Lumea ' + next.world +
+      body += '<p class="world-done">Ai terminat ' + mission + '! 🏆 ' + missionLabel(worldById(next.world)) +
         ' se deschide când îți dă voie profesorul.</p>';
     } else if (next) {
       actions.push({ label: 'Nivelul următor ▶', cls: 'btn-primary', onClick: function () { openLevel(next); } });
@@ -782,6 +867,13 @@
     stopRun();
     if (game.mapIndex !== 0) loadMap(0); else resetHero();
     setGuide(game.level.hint);
+  });
+
+  // doar în previzualizare: profesorul vede o soluție scurtă (cu cele mai puține blocuri)
+  $('btn-solution').addEventListener('click', function () {
+    stopRun();
+    game.editor.setProgram(Engine.fromCompact(game.level.solution));
+    setGuide('O soluție cu ' + game.level.optimal + ' blocuri (3 stele). Apasă „Pornește” ca s-o vezi.', 'good');
   });
 
   $('btn-clear').addEventListener('click', function () {
@@ -982,29 +1074,63 @@
     return best;
   }
 
+  // Misiunile: profesorul poate previzualiza fiecare misiune și o poate deschide pentru toată clasa.
+  function renderMissions(names) {
+    var box = $('missions');
+    box.innerHTML = '';
+    WORLDS.filter(function (w) { return w.available; }).forEach(function (w) {
+      var levels = LEVELS.filter(function (l) { return l.world === w.id; });
+      var openFor = names.filter(function (n) { return Store.isWorldUnlocked(teacherData[n], w.id); }).length;
+      var allOpen = w.id === 1 || (names.length > 0 && openFor === names.length);
+      var card = document.createElement('div');
+      card.className = 'mission-card';
+      card.style.setProperty('--world', w.color);
+      card.innerHTML =
+        '<span class="world-icon">' + w.icon + '</span>' +
+        '<div class="mission-info"><span class="eyebrow">' + missionLabel(w) + '</span><h4></h4>' +
+        '<p class="mission-status"></p></div><div class="mission-actions"></div>';
+      card.querySelector('h4').textContent = w.name;
+      card.querySelector('.mission-status').textContent = levels.length + ' nivele · ' + (w.id === 1
+        ? 'deschisă pentru toți'
+        : (allOpen ? 'deschisă pentru toți' : (openFor ? 'deschisă pentru ' + openFor + ' din ' + names.length + ' copii' : 'închisă')));
+      card.classList.toggle('open', allOpen);
+      var actions = card.querySelector('.mission-actions');
+      actions.appendChild(teacherButton('👁 Previzualizează', 'btn-ghost', function () { startPreview(w.id); }));
+      if (w.id !== 1) {
+        actions.appendChild(allOpen
+          ? teacherButton('🔒 Închide pentru toți', 'btn-ghost', function () { bulkWorld(w.id, false); })
+          : teacherButton('🔓 Deblochează pentru toți', 'btn-primary', function () { bulkWorld(w.id, true); }));
+      }
+      box.appendChild(card);
+    });
+    // următoarea misiune încă nu e gata: o arătăm doar ca să se știe că urmează
+    var nextUp = WORLDS.filter(function (w) { return !w.available; })[0];
+    if (nextUp) {
+      var soon = document.createElement('div');
+      soon.className = 'mission-card soon';
+      soon.innerHTML = '<span class="world-icon">🔒</span><div class="mission-info"><span class="eyebrow">' +
+        missionLabel(nextUp) + '</span><h4>În pregătire</h4>' +
+        '<p class="mission-status">Când e gata, o poți previzualiza și debloca de aici.</p></div>';
+      box.appendChild(soon);
+    }
+  }
+
+  function teacherButton(label, cls, onClick) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-sm ' + cls;
+    b.textContent = label;
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
   function renderTeacher() {
     var all = teacherData;
     var names = Object.keys(all).sort(function (a, b) { return a.localeCompare(b, 'ro'); });
 
     var multiWorld = WORLDS.filter(function (w) { return w.available; }).length > 1;
     $('kids-table').classList.toggle('single-world', !multiWorld);
-    var bulk = $('bulk-worlds');
-    bulk.hidden = !multiWorld;
-    bulk.innerHTML = '';
-    WORLDS.slice(1).filter(function (w) { return w.available; }).forEach(function (w) {
-      var open = document.createElement('button');
-      open.type = 'button';
-      open.className = 'btn btn-primary btn-sm';
-      open.textContent = '🔓 Lumea ' + w.id + ' pentru toți';
-      open.addEventListener('click', function () { bulkWorld(w.id, true); });
-      var close = document.createElement('button');
-      close.type = 'button';
-      close.className = 'btn btn-ghost btn-sm';
-      close.textContent = '🔒 Închide Lumea ' + w.id;
-      close.addEventListener('click', function () { bulkWorld(w.id, false); });
-      bulk.appendChild(open);
-      bulk.appendChild(close);
-    });
+    renderMissions(names);
 
     var body = $('kids-body');
     body.innerHTML = '';
@@ -1020,7 +1146,7 @@
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td><div class="kid-cell"><img alt=""><span></span></div></td>' +
-        '<td>' + (best ? 'Nivelul ' + best.id + ' <small>(Lumea ' + best.world + ', ' + done + ' terminate)</small>' : '—') + '</td>' +
+        '<td>' + (best ? 'Nivelul ' + best.id + ' <small>(' + missionLabel(worldById(best.world)) + ', ' + done + ' terminate)</small>' : '—') + '</td>' +
         '<td>' + Store.totalStars(p) + '</td>' +
         '<td><div class="world-toggles"></div></td>' +
         '<td>' + formatDate(p.lastSeen) + '</td>' +
@@ -1034,12 +1160,12 @@
         b.type = 'button';
         b.className = 'wt' + (on ? ' on' : '');
         b.style.setProperty('--world', w.color);
-        b.textContent = (on ? '🔓 ' : '🔒 ') + w.id;
-        b.title = (on ? 'Închide' : 'Deschide') + ' Lumea ' + w.id + ' pentru ' + n;
+        b.textContent = (on ? '🔓 ' : '🔒 ') + w.number;
+        b.title = (on ? 'Închide' : 'Deschide') + ' ' + missionLabel(w) + ' pentru ' + n;
         b.disabled = w.id === 1;
         b.addEventListener('click', function () {
           teacherAction(Teacher.setWorld(n, w.id, !on),
-            'Lumea ' + w.id + ' a fost ' + (on ? 'închisă' : 'deschisă') + ' pentru ' + n + '.');
+            missionLabel(w) + ' a fost ' + (on ? 'închisă' : 'deschisă') + ' pentru ' + n + '.');
         });
         toggles.appendChild(b);
       });
@@ -1061,7 +1187,26 @@
   function bulkWorld(worldId, unlocked) {
     var count = Object.keys(teacherData).length;
     teacherAction(Teacher.setWorld(null, worldId, unlocked),
-      'Lumea ' + worldId + ' a fost ' + (unlocked ? 'deschisă' : 'închisă') + ' pentru ' + count + ' copii.');
+      missionLabel(worldById(worldId)) + ' a fost ' + (unlocked ? 'deschisă' : 'închisă') + ' pentru ' + count + ' copii.');
+  }
+
+  // ---------- Previzualizare ----------
+  // Profesorul joacă misiunea ca un copil, cu toate nivelele deschise; nimic nu se salvează sau trimite online.
+  function startPreview(worldId) {
+    preview = { world: worldId };
+    profile = {
+      name: 'Profesor', avatar: { type: 'preset', id: 'bufnita' }, progress: {}, drafts: {},
+      worlds: WORLDS.map(function (w) { return w.id; })
+    };
+    showMap();
+  }
+
+  function exitPreview() {
+    stopRun();
+    preview = null;
+    profile = null;
+    game = null;
+    show('screen-teacher');
   }
 
   function csvCell(v) {
@@ -1071,11 +1216,12 @@
 
   $('t-export-csv').addEventListener('click', function () {
     var all = teacherData;
-    var rows = [['Copil', 'Nivel atins', 'Nivele terminate', 'Stele', 'Lumi deschise', 'Ultima activitate']];
+    var rows = [['Copil', 'Nivel atins', 'Nivele terminate', 'Stele', 'Misiuni deschise', 'Ultima activitate']];
     Object.keys(all).sort().forEach(function (n) {
       var p = all[n];
       var best = highestLevel(p);
-      rows.push([n, best ? best.id : 0, Object.keys(p.progress).length, Store.totalStars(p), p.worlds.join(' '), formatDate(p.lastSeen)]);
+      rows.push([n, best ? best.id : 0, Object.keys(p.progress).length, Store.totalStars(p),
+        p.worlds.map(function (id) { var w = worldById(id); return w ? w.number : id; }).join(' '), formatDate(p.lastSeen)]);
     });
     var csv = '﻿' + rows.map(function (r) { return r.map(csvCell).join(';'); }).join('\r\n');
     download('labirint-progres-' + new Date().toISOString().slice(0, 10) + '.csv', csv, 'text/csv;charset=utf-8');
