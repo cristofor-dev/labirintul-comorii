@@ -468,6 +468,8 @@
   function openLevel(level) {
     stopRun();
     var saved = profile.drafts[level.id] || (profile.progress[level.id] || {}).program || [];
+    // programele salvate cu blocuri care nu mai sunt în nivel (de ex. rotirile scoase) nu se mai încarcă
+    if (Object.keys(Engine.usedTypes(saved)).some(function (t) { return level.blocks.indexOf(t) < 0; })) saved = [];
     game = { level: level, mapIndex: 0, map: null, editor: null, run: null };
     var world = worldById(level.world);
     $('game-title').textContent = 'Nivelul ' + level.id + ' · ' + level.name;
