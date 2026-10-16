@@ -666,6 +666,7 @@
       return false;
     }
     resetHero();
+    game.editor.markError(null);
     var st = Engine.newState(game.map, game.dir);
     game.run = { st: st, gen: Engine.run(prog, st), timer: null, auto: false };
     $('hero').style.setProperty('--speed', Math.min(speed() * 0.85, 420) + 'ms');
@@ -691,6 +692,7 @@
     if (res.done) { finishRun(); return; }
     var ev = res.value;
     var st = run.st;
+    run.lastId = ev.id;
     game.editor.highlight(ev.id);
     highlightPython(ev.id);
     if (ev.kind === 'move' || ev.kind === 'win') {
@@ -764,7 +766,9 @@
       levelWon();
       return;
     }
-    // nu arătăm care bloc a greșit: copilul urmărește personajul și își dă seama singur
+    // în Misiunea 2 copilul urmărește personajul și își dă seama singur unde a greșit;
+    // de la Misiunea 3 încolo, programele sunt mai lungi, așa că „Caut greșeala” îl duce la bloc
+    var bugId = worldById(game.level.world).number >= 3 ? run.lastId : null;
     var why;
     if (st.failed === 'bump') {
       var what = st.bumped === 'P' ? 'un bolovan' : 'zid';
@@ -786,11 +790,11 @@
     var level = game.level;
     setTimeout(function () {
       if (!game || game.run || game.level !== level) return;
-      showBug(why);
+      showBug(why, bugId);
     }, st.failed === 'hazard' ? 1100 : 500);
   }
 
-  function showBug(why) {
+  function showBug(why, bugId) {
     playSiren();
     var p = document.createElement('p');
     p.textContent = why;
@@ -800,7 +804,9 @@
         '<div class="beacon-dome"></div><div class="beacon-base"></div></div>',
       title: 'BUG DETECTAT!',
       body: p.outerHTML + '<p class="bug-hint">Caută greșeala în program și repar-o!</p>',
-      actions: [{ label: 'Caut greșeala 🔍', cls: 'btn-danger' }]
+      actions: [{ label: 'Caut greșeala 🔍', cls: 'btn-danger', onClick: function () {
+        if (bugId && game) game.editor.markError(bugId);
+      } }]
     });
   }
 

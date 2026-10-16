@@ -383,7 +383,7 @@ img { display: block; }
 .workspace .blk:not(.container) { min-width: 200px; }
 
 .blk.running:not(.container), .blk.running > .blk-head { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--gold), 0 8px 24px -6px rgba(251, 191, 36, .9); transform: scale(1.02); }
-.blk.err:not(.container), .blk.err > .blk-head { animation: errpulse 1.6s ease-out; }
+.blk.err:not(.container), .blk.err > .blk-head { box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--danger); animation: errpulse 1.6s ease-out 2; }
 .blk.check-yes > .blk-head { animation: yespulse .5s; }
 .blk.check-no > .blk-head { animation: nopulse .5s; }
 .blk.dragging { opacity: .3; }

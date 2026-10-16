@@ -326,6 +326,16 @@
           el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
       },
+      // marchează blocul unde a apărut greșeala și îl aduce în fața ochilor
+      markError: function (id) {
+        var prev = ws.querySelectorAll('.err');
+        for (var i = 0; i < prev.length; i++) prev[i].classList.remove('err');
+        var el = id && ws.querySelector('[data-id="' + id + '"]');
+        if (!el) return;
+        void el.offsetWidth;
+        el.classList.add('err');
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      },
       flash: function (id, cls) {
         var el = ws.querySelector('[data-id="' + id + '"]');
         if (!el) return;
