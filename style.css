@@ -185,8 +185,6 @@ img { display: block; }
 .lvl-tag { position: absolute; top: -10px; right: 12px; background: var(--world); color: #fff; font-size: .72rem; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; padding: 2px 10px; border-radius: 999px; animation: pulse 2s ease-in-out infinite; }
 .star { color: #dfe2ea; font-size: 1.15rem; }
 .star.on { color: var(--gold); }
-.world.locked .level-grid { filter: blur(2px); }
-.world-lock { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px; font-weight: 900; font-size: 1.2rem; background: rgba(255, 255, 255, .7); backdrop-filter: blur(2px); }
 
 /* ---------- Ecranul de joc ---------- */
 .game { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; padding: 20px; max-width: 1400px; margin: 0 auto; align-items: start; }

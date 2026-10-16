@@ -310,11 +310,11 @@
       var levels = LEVELS.filter(function (l) { return l.world === w.id; });
       if (!w.available) return; // misiunile încă în lucru nu apar deloc pe hartă
       if (preview && w.id !== preview.world) return;
-      var open = !!preview || Store.isWorldUnlocked(profile, w.id);
+      if (!preview && !Store.isWorldUnlocked(profile, w.id)) return; // misiunile închise nu se văd până le deschide profesorul
       var done = levels.filter(function (l) { return profile.progress[l.id]; }).length;
       var stars = levels.reduce(function (s, l) { return s + ((profile.progress[l.id] || {}).stars || 0); }, 0);
       var sec = document.createElement('section');
-      sec.className = 'world' + (open ? '' : ' locked');
+      sec.className = 'world';
       sec.style.setProperty('--world', w.color);
       sec.innerHTML =
         '<div class="world-head"><span class="world-icon">' + w.icon + '</span>' +
@@ -322,8 +322,7 @@
         '<div class="world-progress"><div class="wp-top"><span>' + done + ' din ' + levels.length + ' nivele</span>' +
         '<span class="wp-stars">★ ' + stars + '/' + levels.length * 3 + '</span></div>' +
         '<div class="bar"><span style="width:' + Math.round(done / levels.length * 100) + '%"></span></div></div></div>' +
-        '<div class="level-grid"></div>' +
-        (open ? '' : '<div class="world-lock">🔒 Misiunea se deschide când îți dă voie profesorul.</div>');
+        '<div class="level-grid"></div>';
       var grid = sec.querySelector('.level-grid');
       var current = true;
       levels.forEach(function (l) {
@@ -826,11 +825,9 @@
       { label: 'Harta', cls: 'btn-ghost', onClick: showMap }];
 
     var mission = missionLabel(worldById(level.world));
-    if (next && next.world !== level.world && (preview || !worldAvailable(next.world))) {
+    if (next && next.world !== level.world &&
+        (preview || !worldAvailable(next.world) || !Store.isWorldUnlocked(profile, next.world))) {
       body += '<p class="world-done">Ai terminat ' + mission + '! Ești un adevărat Erou Isteț! 🏆</p>';
-    } else if (next && next.world !== level.world && !Store.isWorldUnlocked(profile, next.world)) {
-      body += '<p class="world-done">Ai terminat ' + mission + '! 🏆 ' + missionLabel(worldById(next.world)) +
-        ' se deschide când îți dă voie profesorul.</p>';
     } else if (next) {
       actions.push({ label: 'Nivelul următor ▶', cls: 'btn-primary', onClick: function () { openLevel(next); } });
     } else {
