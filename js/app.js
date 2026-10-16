@@ -501,7 +501,7 @@
         renderPython(prog);
       },
       onLimit: function () {
-        setGuide('Ai folosit toate blocurile. Poți scrie programul mai scurt, cu o buclă?', 'warn');
+        setGuide('Ai folosit toate blocurile. Poți scrie programul mai scurt?', 'warn');
         var c = $('block-count');
         c.classList.remove('shake');
         void c.offsetWidth;
@@ -510,7 +510,6 @@
     });
     show('screen-game'); // întâi afișăm ecranul, ca tabla să-și poată măsura lățimea
     loadMap(0);
-    if (level.tip === 'nest' && !profile.progress[level.id] && !tipSeen(level.id)) showNestTip(level.id);
   }
 
   // ---------- Codul Python ----------
@@ -623,42 +622,6 @@
 
   // arătăm doar câte blocuri are programul, fără limită sau țintă, ca să nu dăm soluția
   // câte blocuri a folosit copilul și, dacă nivelul are o limită, câte mai are
-  // ---------- Sfat: buclă în buclă ----------
-  function tipKey(levelId) { return 'labirint.tip.' + levelId + '.' + profile.name; }
-
-  function tipSeen(levelId) {
-    if (preview) return false; // profesorul vede sfatul de fiecare dată
-    try { return localStorage.getItem(tipKey(levelId)) === '1'; } catch (e) { return false; }
-  }
-
-  function demoBlock(type, label) {
-    var m = Editor.META[type];
-    return '<div class="blk cat-' + m.cat + ' t-' + type + '"><span class="ico">' + m.icon + '</span><span class="lbl">' + label + '</span></div>';
-  }
-
-  function demoLoop(n, inner) {
-    return '<div class="blk cat-loop t-repeat container"><div class="blk-head"><span class="ico">🔁</span>' +
-      '<span class="lbl">Repetă <span class="num"><b>' + n + '</b></span> ori</span></div>' +
-      '<div class="slot">' + inner + '</div><div class="blk-foot"></div></div>';
-  }
-
-  function showNestTip(levelId) {
-    showModal({
-      cls: 'modal-tip',
-      art: '<div class="tip-badge" aria-hidden="true">🏗️</div>',
-      title: 'Buclă în buclă!',
-      body: '<p>Un „Repetă” poate sta <b>în interiorul</b> altui „Repetă”. Bucla mare repetă tot ce e în ea, chiar și bucla mică.</p>' +
-        '<div class="nest-demo">' + demoLoop(2, demoLoop(3, demoBlock('right', 'Dreapta')) + demoBlock('up', 'Sus')) + '</div>' +
-        '<p class="tip-steps">Programul de mai sus face de 2 ori: 3 pași la dreapta, apoi unul în sus.</p>' +
-        '<p class="tip-how"><b>Cum pui o buclă în buclă:</b> atinge zona goală din interiorul unui „Repetă” ' +
-        '(se colorează), apoi atinge „Repetă” din Comenzi. Sau trage-l direct acolo.</p>',
-      actions: [{ label: 'Am înțeles!', onClick: function () {
-        if (preview) return;
-        try { localStorage.setItem(tipKey(levelId), '1'); } catch (e) { /* îl mai vede o dată */ }
-      } }]
-    });
-  }
-
   function updateCount(n, max) {
     var c = $('block-count');
     c.classList.toggle('almost', !!max && n === max - 1);

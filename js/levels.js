@@ -24,7 +24,7 @@
   var LEVELS = [
     // ---------------- Misiunea 2 (Navigatorul): secvențe ----------------
     { id: 1, world: 1, name: 'Primii pași',
-      hint: 'Apasă pe săgeata ➡ de 4 ori ca să pui comenzile în program, apoi apasă „Pornește”.',
+      hint: 'Atinge săgețile ca să le pui în program, apoi apasă „Pornește”.',
       blocks: MOVE_ABS, optimal: 4, maxBlocks: null,
       maps: [{ dir: 1, grid: [
         '#######',
@@ -149,7 +149,7 @@
     // ---------------- Misiunea 3 (Arhitectul): bucle ----------------
     // Toate nivelele folosesc doar cele 4 săgeți (ca pe podea); 13 e provocarea primelor nivele.
     { id: 11, world: 2, name: 'Drumul lung',
-      hint: 'Pune un bloc „Repetă”, schimbă numărul cu + și −, apoi pune săgeata ➡ înăuntrul lui. Un singur cartonaș face munca a opt!',
+      hint: 'Ai un bloc nou: „Repetă”. Ce pui înăuntrul lui se face de câte ori arată numărul, pe care îl schimbi cu + și −.',
       blocks: MOVE_ABS.concat(['repeat']), optimal: 2, maxBlocks: 3,
       maps: [{ dir: 1, grid: [
         '###########',
@@ -158,7 +158,7 @@
       solution: [['repeat', 8, [['right']]]] },
 
     { id: 12, world: 2, name: 'Scările',
-      hint: 'Fiecare treaptă e la fel: un pas la dreapta, un pas în jos. Pune o treaptă într-un „Repetă” și numără câte trepte sunt.',
+      hint: 'O scară până la comoară. Ai la dispoziție bucla „Repetă”, care face aceleași instrucțiuni de mai multe ori.',
       blocks: MOVE_ABS.concat(['repeat']), optimal: 3, maxBlocks: 4,
       maps: [{ dir: 1, grid: [
         '#######',
@@ -171,7 +171,7 @@
       solution: [['repeat', 4, [['right'], ['down']]]] },
 
     { id: 13, world: 2, name: 'Muntele',
-      hint: 'Provocare! Urcarea are trei trepte la fel (sus, dreapta), coborârea tot trei (dreapta, jos). Două bucle și ești sus... apoi jos!',
+      hint: 'Provocare! Un munte de urcat și de coborât. Poți folosi câte bucle „Repetă” ai nevoie.',
       blocks: MOVE_ABS.concat(['repeat']), optimal: 6, maxBlocks: 7,
       maps: [{ dir: 1, grid: [
         '#########',
@@ -184,7 +184,7 @@
 
     // 14–20: nivele în plus pentru cei rapizi, tot mai grele; de la 17 încolo, bucle una în alta.
     { id: 14, world: 2, name: 'Insulele de lavă',
-      hint: 'Lava e peste tot, doar insulele sunt sigure! Uită-te ce pași se repetă de la o insulă la alta și pune-i într-un „Repetă”.',
+      hint: 'Lava e peste tot, doar insulele sunt sigure! 🔥 Ai la dispoziție bucla „Repetă”.',
       blocks: MOVE_ABS.concat(['repeat']), optimal: 4, maxBlocks: 5,
       maps: [{ dir: 1, grid: [
         '#########',
@@ -196,7 +196,7 @@
       solution: [['repeat', 3, [['right'], ['right'], ['down']]]] },
 
     { id: 15, world: 2, name: 'Colțul cetății',
-      hint: 'Poți pune mai multe blocuri „Repetă” unul după altul: unul pentru drumul spre dreapta, altul pentru drumul în jos.',
+      hint: 'Drumul ocolește cetatea. Poți pune mai multe bucle „Repetă” în același program.',
       blocks: MOVE_ABS.concat(['repeat']), optimal: 4, maxBlocks: 5,
       maps: [{ dir: 1, grid: [
         '########',
@@ -209,7 +209,7 @@
       solution: [['repeat', 5, [['right']]], ['repeat', 4, [['down']]]] },
 
     { id: 16, world: 2, name: 'Ocolul lacului',
-      hint: 'Trei maluri, trei bucle: una spre dreapta, una în jos și una spre stânga.',
+      hint: 'Eroul nu știe să înoate! 🌊 Du-l la comoară pe lângă lac. Ai la dispoziție bucle „Repetă”.',
       blocks: MOVE_ABS.concat(['repeat']), optimal: 6, maxBlocks: 7,
       maps: [{ dir: 1, grid: [
         '#######',
@@ -222,8 +222,7 @@
       solution: [['repeat', 4, [['right']]], ['repeat', 4, [['down']]], ['repeat', 4, [['left']]]] },
 
     { id: 17, world: 2, name: 'Scara lată',
-      hint: 'Secretul arhitecților: un „Repetă” poate sta în alt „Repetă”! Fiecare treaptă are trei pași la dreapta și unul în jos.',
-      tip: 'nest', // prima buclă în buclă: arătăm întâi un exemplu
+      hint: 'O scară cu trepte late. Știai că un „Repetă” poate sta în interiorul altui „Repetă”?',
       blocks: MOVE_ABS.concat(['repeat']), optimal: 4, maxBlocks: 5,
       maps: [{ dir: 1, grid: [
         '############',
@@ -235,7 +234,7 @@
       solution: [['repeat', 3, [['repeat', 3, [['right']]], ['down']]]] },
 
     { id: 18, world: 2, name: 'Scara uriașului',
-      hint: 'O scară cu trepte uriașe: trei pași la dreapta, trei în jos. Pune câte o buclă pentru fiecare, apoi pe amândouă într-o buclă mare.',
+      hint: 'O scară cu trepte uriașe. Ai la dispoziție bucle „Repetă”, chiar și una în alta.',
       blocks: MOVE_ABS.concat(['repeat']), optimal: 5, maxBlocks: 6,
       maps: [{ dir: 1, grid: [
         '#########',
@@ -250,7 +249,7 @@
       solution: [['repeat', 2, [['repeat', 3, [['right']]], ['repeat', 3, [['down']]]]]] },
 
     { id: 19, world: 2, name: 'Zidul cu creneluri',
-      hint: 'Zidul cetății are creneluri: sus, trei pași, jos, trei pași. Scrie un singur crenel, apoi repetă-l.',
+      hint: 'Zidul cetății are creneluri. Ai la dispoziție bucle „Repetă”, chiar și una în alta.',
       blocks: MOVE_ABS.concat(['repeat']), optimal: 7, maxBlocks: 8,
       maps: [{ dir: 1, grid: [
         '###############',
@@ -260,7 +259,7 @@
       solution: [['repeat', 2, [['up'], ['repeat', 3, [['right']]], ['down'], ['repeat', 3, [['right']]]]]] },
 
     { id: 20, world: 2, name: 'Munții gemeni',
-      hint: 'Marea provocare a arhitectului: doi munți la fel! Ții minte Muntele? Pune-l pe tot într-un „Repetă” care se face de două ori.',
+      hint: 'Marea provocare a arhitectului: doi munți gemeni! ⛰️ Ai la dispoziție bucle „Repetă”, chiar și una în alta.',
       blocks: MOVE_ABS.concat(['repeat']), optimal: 7, maxBlocks: 8,
       maps: [{ dir: 1, grid: [
         '###############',

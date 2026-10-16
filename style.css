@@ -512,15 +512,6 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 @keyframes sink { 0% { transform: scale(1); opacity: 1; } 30% { transform: scale(1.1) translateY(-8%); } 100% { transform: scale(.25) translateY(30%); opacity: 0; } }
 @keyframes bugflash { 50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, .35), var(--sh-lg); } }
 
-/* ---------- Sfat: buclă în buclă ---------- */
-.modal-tip { width: min(480px, 100%); }
-.tip-badge { font-size: 2.6rem; line-height: 1; }
-.nest-demo { display: flex; justify-content: center; margin: 14px 0 6px; text-align: left; pointer-events: none; }
-.nest-demo .blk:not(.container) { min-width: 150px; }
-.nest-demo .slot { padding: 6px; background: rgba(255, 255, 255, .7); }
-#modal-body .tip-steps { font-size: .9rem; }
-#modal-body .tip-how { background: var(--primary-soft); color: #3730a3; border-radius: 14px; padding: 10px 12px; text-align: left; }
-
 /* pe ecran lat tabla rămâne pe loc cât timp derulezi programul și codul Python */
 @media (min-width: 961px) {
   .stage { position: sticky; top: 78px; }
