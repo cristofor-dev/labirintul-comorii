@@ -539,11 +539,41 @@
     markPythonError(game.bugId);
   }
 
+  // blocul cu id-ul dat, căutat și în interiorul buclelor
+  function findBlock(list, id) {
+    for (var i = 0; i < (list || []).length; i++) {
+      var n = list[i];
+      if (n.id === id) return n;
+      var inner = findBlock(n.body, id) || findBlock(n.else, id);
+      if (inner) return inner;
+    }
+    return null;
+  }
+
+  // blocul de pe primul nivel al programului care conține blocul dat (bucla mare în care e)
+  function outerBlock(prog, id) {
+    for (var i = 0; i < prog.length; i++) {
+      if (prog[i].id === id || findBlock(prog[i].body, id) || findBlock(prog[i].else, id)) return prog[i].id;
+    }
+    return id;
+  }
+
+  function blockIds(node, out) {
+    out.push(node.id);
+    (node.body || []).concat(node.else || []).forEach(function (n) { blockIds(n, out); });
+    return out;
+  }
+
   function markPythonError(id) {
     if ($('py-panel').hidden) return;
     qsa('#py-code .py-line.err').forEach(function (l) { l.classList.remove('err'); });
-    if (!id) return;
-    var lines = qsa('#py-code .py-line[data-id="' + id + '"]');
+    var node = id && findBlock(game.editor.getProgram(), id);
+    if (!node) return;
+    // o buclă se marchează cu tot cu liniile din interiorul ei
+    var lines = [];
+    blockIds(node, []).forEach(function (bid) {
+      lines = lines.concat(qsa('#py-code .py-line[data-id="' + bid + '"]'));
+    });
     lines.forEach(function (l) { l.classList.add('err'); });
     if (lines[0]) lines[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
@@ -780,8 +810,11 @@
       return;
     }
     // în Misiunea 2 copilul urmărește personajul și își dă seama singur unde a greșit;
-    // de la Misiunea 3 încolo, programele sunt mai lungi, așa că „Caut greșeala” îl duce la bloc
-    var bugId = worldById(game.level.world).number >= 3 ? run.lastId : null;
+    // de la Misiunea 3 încolo, programele sunt mai lungi, așa că „Caut greșeala” îl duce la bloc.
+    // În Misiunea 3 arătăm doar bucla în care e greșeala; pasul exact îl găsește copilul.
+    var mission = worldById(game.level.world).number;
+    var bugId = mission >= 3 ? run.lastId : null;
+    if (mission === 3 && bugId) bugId = outerBlock(game.editor.getProgram(), bugId);
     var why;
     if (st.failed === 'bump') {
       var what = st.bumped === 'P' ? 'un bolovan' : 'zid';
