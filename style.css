@@ -316,6 +316,7 @@ img { display: block; }
 .py-line { display: block; white-space: pre; padding: 0 16px 0 0; transition: background .15s; }
 .py-line::before { counter-increment: line; content: counter(line); display: inline-block; width: 2.6em; margin-right: 14px; text-align: right; color: #475569; user-select: none; }
 .py-line.running { background: rgba(251, 191, 36, .18); box-shadow: inset 3px 0 0 var(--gold); }
+.py-line.err { background: rgba(239, 68, 68, .22); box-shadow: inset 3px 0 0 var(--danger); }
 .py-kw { color: #c084fc; font-weight: 700; }
 .py-fn { color: #60a5fa; }
 .py-num { color: #fbbf24; }

@@ -496,6 +496,7 @@
         if (!game.run) resetHero();
       },
       onRender: function (n, max, prog) {
+        game.bugId = null; // programul s-a schimbat, marcajul greșelii nu mai e valabil
         updateCount(n);
         renderPython(prog);
       },
@@ -535,6 +536,16 @@
   function renderPython(prog) {
     if ($('py-panel').hidden || !game || !game.map) return;
     $('py-code').innerHTML = Python.toHtml(prog, pythonContext());
+    markPythonError(game.bugId);
+  }
+
+  function markPythonError(id) {
+    if ($('py-panel').hidden) return;
+    qsa('#py-code .py-line.err').forEach(function (l) { l.classList.remove('err'); });
+    if (!id) return;
+    var lines = qsa('#py-code .py-line[data-id="' + id + '"]');
+    lines.forEach(function (l) { l.classList.add('err'); });
+    if (lines[0]) lines[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
   function highlightPython(id) {
@@ -666,7 +677,9 @@
       return false;
     }
     resetHero();
+    game.bugId = null;
     game.editor.markError(null);
+    markPythonError(null);
     var st = Engine.newState(game.map, game.dir);
     game.run = { st: st, gen: Engine.run(prog, st), timer: null, auto: false };
     $('hero').style.setProperty('--speed', Math.min(speed() * 0.85, 420) + 'ms');
@@ -805,7 +818,10 @@
       title: 'BUG DETECTAT!',
       body: p.outerHTML + '<p class="bug-hint">Caută greșeala în program și repar-o!</p>',
       actions: [{ label: 'Caut greșeala 🔍', cls: 'btn-danger', onClick: function () {
-        if (bugId && game) game.editor.markError(bugId);
+        if (!bugId || !game) return;
+        game.bugId = bugId;
+        game.editor.markError(bugId);
+        markPythonError(bugId);
       } }]
     });
   }
