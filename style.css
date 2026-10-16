@@ -298,6 +298,15 @@ img { display: block; }
 .program-head h3 { margin: 0; }
 .block-count { font-size: .86rem; font-weight: 700; color: var(--muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; }
 .block-count b { color: var(--text); }
+.block-count { display: inline-flex; align-items: center; gap: 6px; }
+.block-count .pips { display: inline-flex; gap: 3px; margin-left: 2px; }
+.block-count .pips i { width: 9px; height: 9px; border-radius: 50%; background: #fff; border: 1.5px solid #c7cbe0; }
+.block-count .pips i.used { background: var(--primary); border-color: var(--primary); }
+.block-count.almost { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+.block-count.almost .pips i.used { background: #f59e0b; border-color: #f59e0b; }
+.block-count.full { color: var(--danger); background: #fef2f2; border-color: #fecaca; }
+.block-count.full b { color: var(--danger); }
+.block-count.full .pips i.used { background: var(--danger); border-color: var(--danger); }
 .program-head .btn-python { margin-left: auto; }
 .btn-python.on { background: #0f172a; color: #e2e8f0; border-color: #0f172a; }
 
@@ -502,6 +511,23 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 @keyframes splash { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, .9); } 100% { box-shadow: 0 0 0 calc(var(--cell) * .45) rgba(255, 255, 255, 0); } }
 @keyframes sink { 0% { transform: scale(1); opacity: 1; } 30% { transform: scale(1.1) translateY(-8%); } 100% { transform: scale(.25) translateY(30%); opacity: 0; } }
 @keyframes bugflash { 50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, .35), var(--sh-lg); } }
+
+/* ---------- Sfat: buclă în buclă ---------- */
+.modal-tip { width: min(480px, 100%); }
+.tip-badge { font-size: 2.6rem; line-height: 1; }
+.nest-demo { display: flex; justify-content: center; margin: 14px 0 6px; text-align: left; pointer-events: none; }
+.nest-demo .blk:not(.container) { min-width: 150px; }
+.nest-demo .slot { padding: 6px; background: rgba(255, 255, 255, .7); }
+#modal-body .tip-steps { font-size: .9rem; }
+#modal-body .tip-how { background: var(--primary-soft); color: #3730a3; border-radius: 14px; padding: 10px 12px; text-align: left; }
+
+/* pe ecran lat tabla rămâne pe loc cât timp derulezi programul și codul Python */
+@media (min-width: 961px) {
+  .stage { position: sticky; top: 78px; }
+  /* cu Python deschis, programul și codul încap împreună pe ecran */
+  .game.with-py .workspace { max-height: 36vh; }
+  .game.with-py .py-code { max-height: 36vh; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

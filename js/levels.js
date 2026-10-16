@@ -223,6 +223,7 @@
 
     { id: 17, world: 2, name: 'Scara lată',
       hint: 'Secretul arhitecților: un „Repetă” poate sta în alt „Repetă”! Fiecare treaptă are trei pași la dreapta și unul în jos.',
+      tip: 'nest', // prima buclă în buclă: arătăm întâi un exemplu
       blocks: MOVE_ABS.concat(['repeat']), optimal: 4, maxBlocks: 5,
       maps: [{ dir: 1, grid: [
         '############',

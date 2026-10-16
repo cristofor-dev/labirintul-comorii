@@ -497,7 +497,7 @@
       },
       onRender: function (n, max, prog) {
         game.bugId = null; // programul s-a schimbat, marcajul greșelii nu mai e valabil
-        updateCount(n);
+        updateCount(n, max);
         renderPython(prog);
       },
       onLimit: function () {
@@ -510,6 +510,7 @@
     });
     show('screen-game'); // întâi afișăm ecranul, ca tabla să-și poată măsura lățimea
     loadMap(0);
+    if (level.tip === 'nest' && !profile.progress[level.id] && !tipSeen(level.id)) showNestTip(level.id);
   }
 
   // ---------- Codul Python ----------
@@ -524,6 +525,7 @@
     $('py-panel').hidden = !on;
     $('btn-python').setAttribute('aria-pressed', on ? 'true' : 'false');
     $('btn-python').classList.toggle('on', on);
+    document.querySelector('.game').classList.toggle('with-py', on);
     if (on && game && game.editor) renderPython(game.editor.getProgram());
   }
 
@@ -579,7 +581,24 @@
       lines = lines.concat(qsa('#py-code .py-line[data-id="' + bid + '"]'));
     });
     lines.forEach(function (l) { l.classList.add('err'); });
-    if (lines[0]) lines[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (lines[0]) scrollInside($('py-code').parentNode, lines[0]);
+  }
+
+  // derulează doar caseta de cod, nu toată pagina, ca tabla să rămână la vedere
+  function scrollInside(box, el) {
+    var top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+    var bottom = top + el.offsetHeight;
+    if (top < box.scrollTop + 8) box.scrollTo({ top: top - 8, behavior: 'smooth' });
+    else if (bottom > box.scrollTop + box.clientHeight - 8) box.scrollTo({ top: bottom - box.clientHeight + 8, behavior: 'smooth' });
+  }
+
+  // pe ecran lat, cu Python deschis: aducem programul și codul în fereastră când pornește rularea
+  function showCodeWhileRunning() {
+    if ($('py-panel').hidden || window.innerWidth <= 960) return;
+    var panel = $('py-panel').getBoundingClientRect();
+    if (panel.bottom <= window.innerHeight) return;
+    var head = document.querySelector('.program-box').getBoundingClientRect();
+    window.scrollBy({ top: head.top - 78, behavior: 'smooth' });
   }
 
   function highlightPython(id) {
@@ -588,7 +607,7 @@
     if (!id) return;
     var lines = qsa('#py-code .py-line[data-id="' + id + '"]');
     lines.forEach(function (l) { l.classList.add('running'); });
-    if (lines[0]) lines[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (lines[0]) scrollInside($('py-code').parentNode, lines[0]);
   }
 
   $('btn-python').addEventListener('click', function () { setPythonVisible($('py-panel').hidden); });
@@ -603,8 +622,57 @@
   });
 
   // arătăm doar câte blocuri are programul, fără limită sau țintă, ca să nu dăm soluția
-  function updateCount(n) {
-    $('block-count').innerHTML = 'Blocuri: <b>' + n + '</b>';
+  // câte blocuri a folosit copilul și, dacă nivelul are o limită, câte mai are
+  // ---------- Sfat: buclă în buclă ----------
+  function tipKey(levelId) { return 'labirint.tip.' + levelId + '.' + profile.name; }
+
+  function tipSeen(levelId) {
+    if (preview) return false; // profesorul vede sfatul de fiecare dată
+    try { return localStorage.getItem(tipKey(levelId)) === '1'; } catch (e) { return false; }
+  }
+
+  function demoBlock(type, label) {
+    var m = Editor.META[type];
+    return '<div class="blk cat-' + m.cat + ' t-' + type + '"><span class="ico">' + m.icon + '</span><span class="lbl">' + label + '</span></div>';
+  }
+
+  function demoLoop(n, inner) {
+    return '<div class="blk cat-loop t-repeat container"><div class="blk-head"><span class="ico">🔁</span>' +
+      '<span class="lbl">Repetă <span class="num"><b>' + n + '</b></span> ori</span></div>' +
+      '<div class="slot">' + inner + '</div><div class="blk-foot"></div></div>';
+  }
+
+  function showNestTip(levelId) {
+    showModal({
+      cls: 'modal-tip',
+      art: '<div class="tip-badge" aria-hidden="true">🏗️</div>',
+      title: 'Buclă în buclă!',
+      body: '<p>Un „Repetă” poate sta <b>în interiorul</b> altui „Repetă”. Bucla mare repetă tot ce e în ea, chiar și bucla mică.</p>' +
+        '<div class="nest-demo">' + demoLoop(2, demoLoop(3, demoBlock('right', 'Dreapta')) + demoBlock('up', 'Sus')) + '</div>' +
+        '<p class="tip-steps">Programul de mai sus face de 2 ori: 3 pași la dreapta, apoi unul în sus.</p>' +
+        '<p class="tip-how"><b>Cum pui o buclă în buclă:</b> atinge zona goală din interiorul unui „Repetă” ' +
+        '(se colorează), apoi atinge „Repetă” din Comenzi. Sau trage-l direct acolo.</p>',
+      actions: [{ label: 'Am înțeles!', onClick: function () {
+        if (preview) return;
+        try { localStorage.setItem(tipKey(levelId), '1'); } catch (e) { /* îl mai vede o dată */ }
+      } }]
+    });
+  }
+
+  function updateCount(n, max) {
+    var c = $('block-count');
+    c.classList.toggle('almost', !!max && n === max - 1);
+    c.classList.toggle('full', !!max && n >= max);
+    if (!max) {
+      c.innerHTML = 'Blocuri: <b>' + n + '</b>';
+      c.title = '';
+      return;
+    }
+    var pips = '';
+    for (var i = 0; i < max; i++) pips += '<i' + (i < n ? ' class="used"' : '') + '></i>';
+    c.innerHTML = 'Blocuri: <b>' + n + '</b> din ' + max + '<span class="pips" aria-hidden="true">' + pips + '</span>';
+    var left = Math.max(max - n, 0);
+    c.title = left ? 'Mai poți pune ' + left + (left === 1 ? ' bloc' : ' blocuri') : 'Ai folosit toate blocurile';
   }
 
   function renderMapTabs() {
@@ -718,6 +786,7 @@
     game.run = { st: st, gen: Engine.run(prog, st), timer: null, auto: false };
     $('hero').style.setProperty('--speed', Math.min(speed() * 0.85, 420) + 'ms');
     setRunning(true);
+    showCodeWhileRunning();
     setGuide('Urmărește blocul evidențiat: asta face ' + heroName(profile) + ' acum.');
     return true;
   }
