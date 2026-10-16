@@ -12,8 +12,8 @@
   var WORLDS = [
     { id: 1, number: 2, name: 'Navigatorul', color: '#6366f1', icon: '🧭', available: true,
       intro: 'Un program este o listă de comenzi pe care personajul le face, una după alta.' },
-    { id: 2, number: 3, name: 'Bucle', color: '#f59e0b', icon: '🔁', available: false,
-      intro: 'Bucla „Repetă” face aceiași pași de mai multe ori, ca să scrii mai puțin.' },
+    { id: 2, number: 3, name: 'Arhitectul', color: '#f59e0b', icon: '🏗️', available: true,
+      intro: 'Un arhitect vede ce se repetă. Blocul „Repetă” face aceiași pași de mai multe ori, ca să scrii mai puțin.' },
     { id: 3, number: 4, name: 'Condiții', color: '#10b981', icon: '❓', available: false,
       intro: 'Cu „Dacă” personajul se uită în jur și decide singur ce face.' }
   ];
@@ -156,19 +156,20 @@
         ['forward'], ['forward'], ['turnLeft'], ['forward'], ['forward'], ['forward'], ['turnRight'],
         ['forward'], ['forward'], ['turnLeft'], ['forward']] },
 
-    // ---------------- Misiunea 3: bucle (în lucru, ascunsă) ----------------
+    // ---------------- Misiunea 3 (Arhitectul): bucle ----------------
+    // 11 și 12 folosesc săgețile de pe podea (ca la clasă, cu cartonașele REPETĂ); 13 e provocarea, cu rotiri.
     { id: 11, world: 2, name: 'Drumul lung',
-      hint: 'Pune un bloc „Repetă”, schimbă numărul cu + și −, apoi pune „Înainte” înăuntrul lui.',
-      blocks: MOVE_REL.concat(['repeat']), optimal: 2, maxBlocks: 3,
+      hint: 'Pune un bloc „Repetă”, schimbă numărul cu + și −, apoi pune săgeata ➡ înăuntrul lui. Un singur cartonaș face munca a opt!',
+      blocks: MOVE_ABS.concat(['repeat']), optimal: 2, maxBlocks: 3,
       maps: [{ dir: 1, grid: [
         '###########',
         '#S.......T#',
         '###########'] }],
-      solution: [['repeat', 8, [['forward']]]] },
+      solution: [['repeat', 8, [['right']]]] },
 
     { id: 12, world: 2, name: 'Scările',
-      hint: 'Fiecare treaptă e la fel: un pas, o rotire, un pas, o rotire. Pune o treaptă într-un „Repetă”.',
-      blocks: MOVE_REL.concat(['repeat']), optimal: 5, maxBlocks: 6,
+      hint: 'Fiecare treaptă e la fel: un pas la dreapta, un pas în jos. Pune o treaptă într-un „Repetă” și numără câte trepte sunt.',
+      blocks: MOVE_ABS.concat(['repeat']), optimal: 3, maxBlocks: 4,
       maps: [{ dir: 1, grid: [
         '#######',
         '#S.####',
@@ -177,23 +178,10 @@
         '####..#',
         '#####T#',
         '#######'] }],
-      solution: [['repeat', 4, [['forward'], ['turnRight'], ['forward'], ['turnLeft']]]] },
+      solution: [['repeat', 4, [['right'], ['down']]]] },
 
-    { id: 13, world: 2, name: 'Colțul cetății',
-      hint: 'Poți folosi mai multe blocuri „Repetă”, unul după altul.',
-      blocks: MOVE_REL.concat(['repeat']), optimal: 5, maxBlocks: 6,
-      maps: [{ dir: 1, grid: [
-        '########',
-        '#S.....#',
-        '######.#',
-        '######.#',
-        '######.#',
-        '######T#',
-        '########'] }],
-      solution: [['repeat', 5, [['forward']]], ['turnRight'], ['repeat', 4, [['forward']]]] },
-
-    { id: 14, world: 2, name: 'Muntele',
-      hint: 'Urcarea are trei trepte la fel, coborârea tot trei. Două bucle și ești sus... apoi jos!',
+    { id: 13, world: 2, name: 'Muntele',
+      hint: 'Provocare! Aici eroul se rotește, ca în Misiunea 2. Urcarea are trei trepte la fel, coborârea tot trei. Două bucle și ești sus... apoi jos!',
       blocks: MOVE_REL.concat(['repeat']), optimal: 10, maxBlocks: 11,
       maps: [{ dir: 1, grid: [
         '#########',
@@ -205,23 +193,8 @@
       solution: [['repeat', 3, [['turnLeft'], ['forward'], ['turnRight'], ['forward']]],
         ['repeat', 3, [['forward'], ['turnRight'], ['forward'], ['turnLeft']]]] },
 
-    { id: 15, world: 2, name: 'Turul cetății',
-      hint: 'Provocare: un „Repetă” poate sta în alt „Repetă”! Ce se repetă de 3 ori?',
-      blocks: MOVE_REL.concat(['repeat']), optimal: 4, maxBlocks: 5,
-      maps: [{ dir: 1, grid: [
-        '#########',
-        '#S......#',
-        '#######.#',
-        '#######.#',
-        '#######.#',
-        '#######.#',
-        '#######.#',
-        '#T......#',
-        '#########'] }],
-      solution: [['repeat', 3, [['repeat', 6, [['forward']]], ['turnRight']]]] },
-
     // ---------------- Misiunea 4: condiții (în lucru, ascunsă) ----------------
-    { id: 16, world: 3, name: 'Până la comoară',
+    { id: 14, world: 3, name: 'Până la comoară',
       hint: '„Repetă până la comoară” merge oricât e nevoie. Același program trebuie să meargă pe două drumuri de lungimi diferite!',
       blocks: MOVE_REL.concat(['repeatUntil']), optimal: 2, maxBlocks: 2,
       maps: [
@@ -235,7 +208,7 @@
           '#############'] }],
       solution: [['repeatUntil', [['forward']]]] },
 
-    { id: 17, world: 3, name: 'Spirala',
+    { id: 15, world: 3, name: 'Spirala',
       hint: 'Blocul „Dacă” verifică ceva. Dacă e drum la stânga, rotește-te la stânga. Apoi fă un pas. Și tot așa, până la comoară.',
       blocks: MOVE_REL.concat(['repeatUntil', 'if']), optimal: 4, maxBlocks: 5,
       maps: [{ dir: 1, grid: [
@@ -248,7 +221,7 @@
         '#######'] }],
       solution: [['repeatUntil', [['if', 'left', [['turnLeft']]], ['forward']]]] },
 
-    { id: 18, world: 3, name: 'Dacă... altfel',
+    { id: 16, world: 3, name: 'Dacă... altfel',
       hint: '„Dacă e drum în față”, mergi înainte. „Altfel” (când ai zid în față), rotește-te. Programul trebuie să meargă pe ambele hărți!',
       blocks: MOVE_REL.concat(['repeatUntil', 'ifElse']), optimal: 4, maxBlocks: 5,
       maps: [
@@ -272,7 +245,7 @@
           '#########'] }],
       solution: [['repeatUntil', [['ifElse', 'front', [['forward']], [['turnRight']]]]]] },
 
-    { id: 19, world: 3, name: 'Stânga sau dreapta?',
+    { id: 17, world: 3, name: 'Stânga sau dreapta?',
       hint: 'Când ai zid în față, uită-te: dacă e drum la stânga, mergi la stânga, altfel la dreapta. Poți pune un „Dacă” în alt „Dacă”!',
       blocks: MOVE_REL.concat(['repeatUntil', 'ifElse']), optimal: 6, maxBlocks: 7,
       maps: [{ dir: 1, grid: [
@@ -287,7 +260,7 @@
       solution: [['repeatUntil', [['ifElse', 'front', [['forward']],
         [['ifElse', 'left', [['turnLeft']], [['turnRight']]]]]]]] },
 
-    { id: 20, world: 3, name: 'Marele labirint',
+    { id: 18, world: 3, name: 'Marele labirint',
       hint: 'Secretul exploratorilor: ține mereu „mâna stângă” pe zid. Dacă e drum la stânga, ia-o la stânga; altfel, dacă e drum în față, mergi înainte; altfel rotește-te la dreapta.',
       blocks: MOVE_REL.concat(['repeatUntil', 'if', 'ifElse']), optimal: 7, maxBlocks: 9,
       maps: [{ dir: 1, grid: [
