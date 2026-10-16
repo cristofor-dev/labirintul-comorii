@@ -550,12 +550,16 @@
     return null;
   }
 
-  // blocul de pe primul nivel al programului care conține blocul dat (bucla mare în care e)
-  function outerBlock(prog, id) {
-    for (var i = 0; i < prog.length; i++) {
-      if (prog[i].id === id || findBlock(prog[i].body, id) || findBlock(prog[i].else, id)) return prog[i].id;
+  // cea mai apropiată buclă care conține blocul dat; blocul însuși dacă nu e într-o buclă
+  function innerLoop(list, id, loopId) {
+    for (var i = 0; i < (list || []).length; i++) {
+      var n = list[i];
+      if (n.id === id) return loopId || id;
+      if (!n.body) continue;
+      var found = innerLoop(n.body, id, n.id) || innerLoop(n.else, id, n.id);
+      if (found) return found;
     }
-    return id;
+    return null;
   }
 
   function blockIds(node, out) {
@@ -814,7 +818,7 @@
     // În Misiunea 3 arătăm doar bucla în care e greșeala; pasul exact îl găsește copilul.
     var mission = worldById(game.level.world).number;
     var bugId = mission >= 3 ? run.lastId : null;
-    if (mission === 3 && bugId) bugId = outerBlock(game.editor.getProgram(), bugId);
+    if (mission === 3 && bugId) bugId = innerLoop(game.editor.getProgram(), bugId) || bugId;
     var why;
     if (st.failed === 'bump') {
       var what = st.bumped === 'P' ? 'un bolovan' : 'zid';
