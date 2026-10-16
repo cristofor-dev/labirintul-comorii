@@ -412,6 +412,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 .kids-table th { background: var(--surface-2); color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 800; }
 .kids-table tbody tr:hover { background: #fafbff; }
 .kids-table small { color: var(--muted); }
+.th-sort { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; }
+.th-sort:hover { color: var(--text); }
+.th-sort:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.kids-table th.sorted .th-sort { color: var(--primary); }
+.kids-table th.sorted .th-sort::after { content: attr(data-arrow); font-size: .7rem; }
 .kids-table.single-world th:nth-child(4), .kids-table.single-world td:nth-child(4) { display: none; }
 .kid-cell { display: flex; align-items: center; gap: 10px; font-weight: 800; }
 .kid-cell img { width: 36px; height: 36px; object-fit: contain; border-radius: 50%; background: var(--surface-2); }

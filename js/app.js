@@ -1182,9 +1182,57 @@
     return b;
   }
 
+  // Ordinea din tabel: implicit după ultima dată (cei mai recenți sus); un clic pe antet schimbă criteriul,
+  // al doilea clic pe același antet inversează ordinea.
+  var SORT_KEY = 'labirint.teacherSort';
+  var SORT_DEFAULT_DIR = { name: 1, level: -1, stars: -1, worlds: -1, date: -1 };
+  var teacherSort = (function () {
+    try {
+      var s = JSON.parse(localStorage.getItem(SORT_KEY));
+      if (s && SORT_DEFAULT_DIR[s.by] && (s.dir === 1 || s.dir === -1)) return s;
+    } catch (e) { /* ordinea implicită */ }
+    return { by: 'date', dir: -1 };
+  })();
+
+  function sortValue(p, n, by) {
+    if (by === 'name') return n;
+    if (by === 'level') { var best = highestLevel(p); return (best ? best.id : 0) * 1000 + Object.keys(p.progress).length; }
+    if (by === 'stars') return Store.totalStars(p);
+    if (by === 'worlds') return p.worlds.length;
+    return p.lastSeen || '';
+  }
+
+  function sortedNames(all) {
+    var by = teacherSort.by, dir = teacherSort.dir;
+    return Object.keys(all).sort(function (a, b) {
+      var va = sortValue(all[a], a, by), vb = sortValue(all[b], b, by);
+      var c = typeof va === 'string' ? va.localeCompare(vb, 'ro') : va - vb;
+      return c * dir || a.localeCompare(b, 'ro');
+    });
+  }
+
+  function renderSortHeaders() {
+    qsa('#kids-table th[data-sort]').forEach(function (th) {
+      var on = th.dataset.sort === teacherSort.by;
+      th.classList.toggle('sorted', on);
+      th.setAttribute('aria-sort', on ? (teacherSort.dir === 1 ? 'ascending' : 'descending') : 'none');
+      th.querySelector('.th-sort').dataset.arrow = on ? (teacherSort.dir === 1 ? '▲' : '▼') : '';
+    });
+  }
+
+  qsa('#kids-table th[data-sort] .th-sort').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var by = btn.parentNode.dataset.sort;
+      teacherSort = by === teacherSort.by ? { by: by, dir: -teacherSort.dir } : { by: by, dir: SORT_DEFAULT_DIR[by] };
+      try { localStorage.setItem(SORT_KEY, JSON.stringify(teacherSort)); } catch (e) { /* doar pentru sesiunea curentă */ }
+      renderTeacher();
+    });
+  });
+
   function renderTeacher() {
     var all = teacherData;
-    var names = Object.keys(all).sort(function (a, b) { return a.localeCompare(b, 'ro'); });
+    var names = sortedNames(all);
+    renderSortHeaders();
 
     var multiWorld = WORLDS.filter(function (w) { return w.available; }).length > 1;
     $('kids-table').classList.toggle('single-world', !multiWorld);
@@ -1275,7 +1323,7 @@
   $('t-export-csv').addEventListener('click', function () {
     var all = teacherData;
     var rows = [['Copil', 'Nivel atins', 'Nivele terminate', 'Stele', 'Misiuni deschise', 'Ultima activitate']];
-    Object.keys(all).sort().forEach(function (n) {
+    sortedNames(all).forEach(function (n) {
       var p = all[n];
       var best = highestLevel(p);
       rows.push([n, best ? best.id : 0, Object.keys(p.progress).length, Store.totalStars(p),
