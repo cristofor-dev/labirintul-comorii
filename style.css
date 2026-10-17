@@ -442,6 +442,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 /* ---------- Clase și profesori ---------- */
 .pin-panel input.pin-text { letter-spacing: normal; font-size: 1.1rem; }
 .who-panel { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; font-weight: 800; }
+.who-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
 .class-filter { display: flex; align-items: center; gap: 10px; font-weight: 800; }
 .who-panel select, .bulk-bar select, .kids-table select, .inline-form input, .modal-form input, .modal-form select, .modal-form textarea {
   font: inherit; font-weight: 700; padding: 7px 10px; border: 2px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); outline: none;

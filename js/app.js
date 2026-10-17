@@ -1713,6 +1713,7 @@
   });
 
   $('teacher-back').addEventListener('click', showLogin);
+  $('t-logout').addEventListener('click', showLogin); // showLogin() uită utilizatorul și parola din memorie
 
   window.addEventListener('hashchange', function () {
     if (location.hash === TEACHER_HASH) showTeacher();
