@@ -428,7 +428,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 .th-sort:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .kids-table th.sorted .th-sort { color: var(--primary); }
 .kids-table th.sorted .th-sort::after { content: attr(data-arrow); font-size: .7rem; }
-.kids-table.single-world th:nth-child(4), .kids-table.single-world td:nth-child(4) { display: none; }
+.kids-table.single-world .col-worlds { display: none; }
+[data-role="teacher"] .admin-only, [data-role="local"] .admin-only, [data-role="local"] .cloud-only { display: none !important; }
 .kid-cell { display: flex; align-items: center; gap: 10px; font-weight: 800; }
 .kid-cell img { width: 36px; height: 36px; object-fit: contain; border-radius: 50%; background: var(--surface-2); }
 .world-toggles { display: flex; gap: 6px; }
@@ -437,6 +438,33 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 .wt:disabled { cursor: default; opacity: .7; }
 .empty { text-align: center; color: var(--muted); padding: 28px !important; }
 .note { font-size: .86rem; color: var(--muted); margin: 14px 0 0; }
+
+/* ---------- Clase și profesori ---------- */
+.pin-panel input.pin-text { letter-spacing: normal; font-size: 1.1rem; }
+.who-panel { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; font-weight: 800; }
+.class-filter { display: flex; align-items: center; gap: 10px; font-weight: 800; }
+.who-panel select, .bulk-bar select, .kids-table select, .inline-form input, .modal-form input, .modal-form select, .modal-form textarea {
+  font: inherit; font-weight: 700; padding: 7px 10px; border: 2px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); outline: none;
+}
+.who-panel select:focus, .bulk-bar select:focus, .kids-table select:focus, .inline-form input:focus,
+.modal-form input:focus, .modal-form select:focus, .modal-form textarea:focus { border-color: var(--primary); box-shadow: var(--ring); }
+.kids-table select { padding: 4px 8px; font-size: .9rem; }
+.manage-panel h3 { font-size: 1.15rem; font-weight: 900; margin-bottom: 12px; }
+.manage-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+.manage-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.manage-list li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface-2); }
+.manage-list .m-name { font-weight: 900; }
+.manage-list .m-sub { flex: 1; min-width: 120px; color: var(--muted); font-size: .88rem; font-weight: 700; }
+.manage-list .m-empty { color: var(--muted); font-weight: 700; border-style: dashed; }
+.inline-form { display: flex; flex-wrap: wrap; gap: 8px; }
+.inline-form input { flex: 1; min-width: 140px; }
+.bulk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 14px; border-radius: var(--r); background: var(--primary-soft); font-weight: 800; }
+.col-select { width: 1%; }
+.modal-form { display: grid; gap: 10px; text-align: left; margin-top: 8px; }
+.modal-form label { display: grid; gap: 4px; font-weight: 800; }
+.modal-form textarea { min-height: 140px; resize: vertical; }
+.modal-form .check { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.modal-form .error { margin: 0; }
 
 /* ---------- Misiuni (panoul profesorului) și previzualizare ---------- */
 #teacher-content { display: grid; gap: 20px; }

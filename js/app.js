@@ -1009,19 +1009,39 @@
   // Se deschide doar din adresa site-ului cu #profesor la final; pe ecranul copiilor nu există buton.
   var TEACHER_HASH = '#profesor';
   var pinMode = 'enter'; // enter | setup | change
-  var teacherPw = null;  // parola online, ținută doar cât e deschis panoul
+  var teacherAuth = null; // { user, pw } online, ținute doar cât e deschis panoul
   var teacherData = {};
+  var LOCAL_STAFF = { role: 'local', name: '', classes: [], teachers: [] };
+  var staff = LOCAL_STAFF; // rolul (admin | teacher | local), clasele și profesorii
+  var KEY_USER = 'labirint.teacherUser';
+  var KEY_CLASS = 'labirint.classFilter';
+  var classFilter = (function () { try { return localStorage.getItem(KEY_CLASS) || 'all'; } catch (e) { return 'all'; } })();
+  var selected = {}; // copiii bifați pentru mutarea în clasă
+
+  function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
   // De unde vin datele: online (toate calculatoarele) sau doar din acest browser.
   var Teacher = Cloud.enabled ? {
-    list: function () { return Cloud.teacher.list(teacherPw); },
-    setWorld: function (name, worldId, open) { return Cloud.teacher.setWorld(teacherPw, name, worldId, open); },
+    list: function () {
+      return Cloud.teacher.overview(teacherAuth).then(function (o) {
+        staff = { role: o.role, name: o.name, classes: o.classes || [], teachers: o.teachers || [] };
+        return o.students || {};
+      });
+    },
+    setWorld: function (name, worldId, open, classId) { return Cloud.teacher.setWorld(teacherAuth, name, worldId, open, classId); },
     remove: function (name) {
       Store.deleteProfile(name); // altfel s-ar trimite din nou de pe acest calculator
-      return Cloud.teacher.remove(teacherPw, name);
-    }
+      return Cloud.teacher.remove(teacherAuth, name);
+    },
+    saveClass: function (id, name) { return Cloud.teacher.saveClass(teacherAuth, id, name); },
+    deleteClass: function (id) { return Cloud.teacher.deleteClass(teacherAuth, id); },
+    saveTeacher: function (id, name, pw) { return Cloud.teacher.saveTeacher(teacherAuth, id, name, pw); },
+    deleteTeacher: function (id) { return Cloud.teacher.deleteTeacher(teacherAuth, id); },
+    setClassTeachers: function (classId, ids) { return Cloud.teacher.setClassTeachers(teacherAuth, classId, ids); },
+    setStudentClass: function (names, classId) { return Cloud.teacher.setStudentClass(teacherAuth, names, classId); },
+    addStudents: function (names, classId) { return Cloud.teacher.addStudents(teacherAuth, names, classId); }
   } : {
-    list: function () { return Promise.resolve(Store.loadAll()); },
+    list: function () { staff = LOCAL_STAFF; return Promise.resolve(Store.loadAll()); },
     setWorld: function (name, worldId, open) {
       (name ? [name] : Object.keys(Store.loadAll())).forEach(function (n) {
         var prof = Store.getProfile(n);
@@ -1035,7 +1055,11 @@
 
   function showTeacher() {
     stopRun();
-    teacherPw = null;
+    teacherAuth = null;
+    staff = LOCAL_STAFF;
+    selected = {};
+    teacherMsg('');
+    $('screen-teacher').dataset.role = 'local';
     pinMode = Cloud.enabled || Store.hasPin() ? 'enter' : 'setup';
     preparePin();
     $('teacher-content').hidden = true;
@@ -1045,12 +1069,14 @@
       ? 'Rezultatele sunt centralizate online, de pe toate calculatoarele. Pozele încărcate de copii rămân doar pe calculatorul lor.'
       : 'Datele sunt salvate doar în acest browser, pe acest calculator. Folosește „Backup JSON” și „Import JSON” ca să aduni progresul de pe mai multe calculatoare.';
     show('screen-teacher');
-    $('pin-1').focus();
+    ($('pin-user').hidden ? $('pin-1') : $('pin-user').value ? $('pin-1') : $('pin-user')).focus();
   }
 
   function leaveTeacher() {
-    teacherPw = null;
+    teacherAuth = null;
     teacherData = {};
+    staff = LOCAL_STAFF;
+    selected = {};
     if (location.hash === TEACHER_HASH) history.replaceState(null, '', location.pathname + location.search);
   }
 
@@ -1068,13 +1094,15 @@
       }
     });
     $('pin-2').hidden = !setup;
+    $('pin-user').hidden = !Cloud.enabled || setup;
+    if (!$('pin-user').hidden) { try { $('pin-user').value = localStorage.getItem(KEY_USER) || ''; } catch (e) { /* gol */ } }
     if (Cloud.enabled) {
       $('pin-1').placeholder = 'Parola';
       $('pin-2').placeholder = 'Repetă parola';
-      $('pin-title').textContent = setup ? 'Parolă nouă' : 'Parola profesorului';
+      $('pin-title').textContent = setup ? 'Parolă nouă' : 'Autentificare';
       $('pin-help').textContent = setup
-        ? 'Cel puțin 8 caractere. Va fi noua parolă pe toate calculatoarele.'
-        : 'Scrie parola ca să vezi rezultatele tuturor copiilor.';
+        ? 'Cel puțin 8 caractere. Va fi noua ta parolă pe toate calculatoarele.'
+        : 'Scrie utilizatorul (admin sau numele tău de profesor) și parola, ca să vezi rezultatele claselor tale.';
       return;
     }
     $('pin-title').textContent = pinMode === 'change' ? 'PIN nou' : (setup ? 'Alege un PIN de profesor' : 'PIN profesor');
@@ -1107,7 +1135,9 @@
   function submitPassword(p1, p2) {
     if (pinMode !== 'change') {
       if (!p1) return;
-      teacherPw = p1;
+      var user = $('pin-user').value.trim();
+      teacherAuth = { user: user, pw: p1 };
+      try { localStorage.setItem(KEY_USER, user); } catch (e) { /* nu-l reținem */ }
       setPinBusy(true);
       loadTeacher().then(function () { setPinBusy(false); });
       return;
@@ -1115,9 +1145,9 @@
     if (p1.length < 8) { $('pin-error').textContent = 'Parola trebuie să aibă cel puțin 8 caractere.'; return; }
     if (p1 !== p2) { $('pin-error').textContent = 'Cele două parole nu sunt la fel.'; return; }
     setPinBusy(true);
-    Cloud.teacher.changePassword(teacherPw, p1).then(function () {
+    Cloud.teacher.changePassword(teacherAuth, p1).then(function () {
       setPinBusy(false);
-      teacherPw = p1;
+      teacherAuth.pw = p1;
       teacherMsg('Parola a fost schimbată.');
       loadTeacher();
     }, function (err) {
@@ -1132,16 +1162,17 @@
   function loadTeacher() {
     return Teacher.list().then(function (data) {
       teacherData = data || {};
+      $('screen-teacher').dataset.role = staff.role;
       $('pin-form').hidden = true;
       $('teacher-content').hidden = false;
       renderTeacher();
     }, function (err) {
       if (Cloud.isWrongPassword(err)) {
-        teacherPw = null;
+        teacherAuth = null;
         pinMode = 'enter';
         preparePin();
         $('teacher-content').hidden = true;
-        $('pin-error').textContent = 'Parolă greșită.';
+        $('pin-error').textContent = 'Utilizator sau parolă greșită.';
         $('pin-1').focus();
       } else if ($('teacher-content').hidden) {
         $('pin-error').textContent = OFFLINE_MSG;
@@ -1152,11 +1183,13 @@
   }
 
   // rulează o schimbare, apoi reîncarcă tabelul
+  function actionError(err) { return err && err.code ? err.message : OFFLINE_MSG; }
+
   function teacherAction(promise, okMsg) {
-    promise.then(function () {
+    return promise.then(function () {
       teacherMsg(okMsg);
-      loadTeacher();
-    }, function () { teacherMsg(OFFLINE_MSG); });
+      return loadTeacher();
+    }, function (err) { teacherMsg(actionError(err)); });
   }
 
   function teacherMsg(text) { $('teacher-msg').textContent = text; }
@@ -1220,7 +1253,7 @@
   // Ordinea din tabel: implicit după ultima dată (cei mai recenți sus); un clic pe antet schimbă criteriul,
   // al doilea clic pe același antet inversează ordinea.
   var SORT_KEY = 'labirint.teacherSort';
-  var SORT_DEFAULT_DIR = { name: 1, level: -1, stars: -1, worlds: -1, date: -1 };
+  var SORT_DEFAULT_DIR = { name: 1, class: 1, level: -1, stars: -1, worlds: -1, date: -1 };
   var teacherSort = (function () {
     try {
       var s = JSON.parse(localStorage.getItem(SORT_KEY));
@@ -1231,6 +1264,7 @@
 
   function sortValue(p, n, by) {
     if (by === 'name') return n;
+    if (by === 'class') return className(p.classId) || '\uffff';
     if (by === 'level') { var best = highestLevel(p); return (best ? best.id : 0) * 1000 + Object.keys(p.progress).length; }
     if (by === 'stars') return Store.totalStars(p);
     if (by === 'worlds') return p.worlds.length;
@@ -1264,10 +1298,254 @@
     });
   });
 
+  // ---------- Clase ----------
+  function className(id) {
+    if (id == null) return '';
+    var c = staff.classes.filter(function (x) { return x.id === id; })[0];
+    return c ? c.name : '';
+  }
+
+  function inFilter(p) {
+    if (classFilter === 'all') return true;
+    if (classFilter === 'none') return p.classId == null;
+    return p.classId === Number(classFilter);
+  }
+
+  // ce trimitem serverului pentru acțiunile pe grup: null = toate clasele vizibile, -1 = fără clasă
+  function filterClassId() {
+    return classFilter === 'all' ? null : classFilter === 'none' ? -1 : Number(classFilter);
+  }
+
+  function classOptions(withNone) {
+    return staff.classes.map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + '</option>'; }).join('') +
+      (withNone ? '<option value="none">Fără clasă</option>' : '');
+  }
+
+  function renderFilter() {
+    var isAdmin = staff.role === 'admin';
+    var opts = [];
+    if (isAdmin || staff.classes.length > 1) opts.push('<option value="all">' + (isAdmin ? 'Toate clasele' : 'Toate clasele mele') + '</option>');
+    opts.push(classOptions(isAdmin));
+    var sel = $('class-filter');
+    sel.innerHTML = opts.join('');
+    if (!qsa('#class-filter option').some(function (o) { return o.value === classFilter; })) {
+      classFilter = sel.options.length ? sel.options[0].value : 'all';
+    }
+    sel.value = classFilter;
+    $('who-label').textContent = isAdmin ? '👑 Administrator' : '👩‍🏫 ' + staff.name;
+  }
+
+  $('class-filter').addEventListener('change', function () {
+    classFilter = $('class-filter').value;
+    try { localStorage.setItem(KEY_CLASS, classFilter); } catch (e) { /* doar pentru sesiunea curentă */ }
+    selected = {};
+    renderTeacher();
+  });
+
+  // Clase și profesori (doar administrator)
+  function renderManage() {
+    if (staff.role !== 'admin') return;
+    var counts = {};
+    Object.keys(teacherData).forEach(function (n) {
+      var id = teacherData[n].classId;
+      if (id != null) counts[id] = (counts[id] || 0) + 1;
+    });
+
+    var cl = $('class-list');
+    cl.innerHTML = '';
+    if (!staff.classes.length) cl.innerHTML = '<li class="m-empty">Nicio clasă încă.</li>';
+    staff.classes.forEach(function (c) {
+      var li = document.createElement('li');
+      li.innerHTML = '<span class="m-name"></span><span class="m-sub"></span>';
+      li.querySelector('.m-name').textContent = c.name;
+      li.querySelector('.m-sub').textContent = (counts[c.id] || 0) + ' elevi · ' + (c.teachers.length ? c.teachers.join(', ') : 'fără profesor');
+      li.appendChild(teacherButton('Profesori', 'btn-ghost', function () { editClassTeachers(c); }));
+      li.appendChild(teacherButton('Redenumește', 'btn-ghost', function () { renameClass(c); }));
+      li.appendChild(teacherButton('🗑', 'btn-ghost', function () {
+        showModal({
+          title: 'Ștergi clasa ' + c.name + '?',
+          body: '<p>Copiii din clasă nu se șterg, doar rămân fără clasă.</p>',
+          actions: [{ label: 'Nu', cls: 'btn-ghost' }, { label: 'Da, șterge', cls: 'btn-danger', onClick: function () {
+            teacherAction(Teacher.deleteClass(c.id), 'Clasa ' + c.name + ' a fost ștearsă.');
+          } }]
+        });
+      }));
+      cl.appendChild(li);
+    });
+
+    var tl = $('teacher-list');
+    tl.innerHTML = '';
+    if (!staff.teachers.length) tl.innerHTML = '<li class="m-empty">Niciun profesor încă.</li>';
+    staff.teachers.forEach(function (t) {
+      var mine = staff.classes.filter(function (c) { return c.teacherIds.indexOf(t.id) >= 0; }).map(function (c) { return c.name; });
+      var li = document.createElement('li');
+      li.innerHTML = '<span class="m-name"></span><span class="m-sub"></span>';
+      li.querySelector('.m-name').textContent = t.name;
+      li.querySelector('.m-sub').textContent = mine.length ? 'Clase: ' + mine.join(', ') : 'fără clasă';
+      li.appendChild(teacherButton('Editează', 'btn-ghost', function () { editTeacher(t); }));
+      li.appendChild(teacherButton('🗑', 'btn-ghost', function () {
+        showModal({
+          title: 'Ștergi profesorul ' + t.name + '?',
+          body: '<p>Contul lui dispare. Clasele și rezultatele copiilor rămân.</p>',
+          actions: [{ label: 'Nu', cls: 'btn-ghost' }, { label: 'Da, șterge', cls: 'btn-danger', onClick: function () {
+            teacherAction(Teacher.deleteTeacher(t.id), 'Profesorul ' + t.name + ' a fost șters.');
+          } }]
+        });
+      }));
+      tl.appendChild(li);
+    });
+  }
+
+  // fereastră cu formular; onSubmit întoarce un text (eroare), o promisiune sau nimic
+  function formModal(o) {
+    showModal({ title: o.title, body: o.body, actions: [{ label: 'Anulează', cls: 'btn-ghost' }] });
+    var body = $('modal-body');
+    var err = document.createElement('p');
+    err.className = 'error';
+    err.setAttribute('role', 'alert');
+    body.appendChild(err);
+    var ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'btn btn-primary';
+    ok.textContent = o.submit;
+    ok.addEventListener('click', function () {
+      var r = o.onSubmit(body);
+      if (typeof r === 'string') { err.textContent = r; return; }
+      ok.disabled = true;
+      Promise.resolve(r).then(function () { $('modal').hidden = true; }, function (e) {
+        ok.disabled = false;
+        err.textContent = actionError(e);
+      });
+    });
+    $('modal-actions').appendChild(ok);
+    var first = body.querySelector('input:not([type=checkbox]), textarea, select');
+    if (first) first.focus();
+  }
+
+  function renameClass(c) {
+    formModal({
+      title: 'Redenumește clasa', submit: 'Salvează',
+      body: '<div class="modal-form"><label>Numele clasei<input id="f-name" maxlength="40" value="' + esc(c.name) + '"></label></div>',
+      onSubmit: function (b) {
+        var name = b.querySelector('#f-name').value.trim();
+        if (!name) return 'Scrie numele clasei.';
+        return Teacher.saveClass(c.id, name).then(function () { teacherMsg('Clasa a fost redenumită.'); loadTeacher(); });
+      }
+    });
+  }
+
+  function editClassTeachers(c) {
+    if (!staff.teachers.length) {
+      showModal({ title: 'Mai întâi adaugă profesori', body: '<p>Creează profesorii din lista „Profesori”, apoi îi poți alege pentru clasă.</p>' });
+      return;
+    }
+    var boxes = staff.teachers.map(function (t) {
+      return '<label class="check"><input type="checkbox" value="' + t.id + '"' + (c.teacherIds.indexOf(t.id) >= 0 ? ' checked' : '') + '> ' + esc(t.name) + '</label>';
+    }).join('');
+    formModal({
+      title: 'Profesorii clasei ' + c.name, submit: 'Salvează',
+      body: '<div class="modal-form">' + boxes + '</div>',
+      onSubmit: function (b) {
+        var ids = qsa('#modal-body input[type=checkbox]').filter(function (x) { return x.checked; }).map(function (x) { return Number(x.value); });
+        return Teacher.setClassTeachers(c.id, ids).then(function () { teacherMsg('Profesorii clasei ' + c.name + ' au fost salvați.'); loadTeacher(); });
+      }
+    });
+  }
+
+  function editTeacher(t) {
+    formModal({
+      title: 'Profesor', submit: 'Salvează',
+      body: '<div class="modal-form"><label>Nume<input id="f-name" maxlength="40" value="' + esc(t.name) + '"></label>' +
+        '<label>Parolă nouă (lasă gol ca să rămână cea veche)<input id="f-pass" type="password" maxlength="64" autocomplete="new-password"></label></div>',
+      onSubmit: function (b) {
+        var name = b.querySelector('#f-name').value.trim(), pw = b.querySelector('#f-pass').value;
+        if (!name) return 'Scrie numele profesorului.';
+        if (pw && pw.length < 8) return 'Parola trebuie să aibă cel puțin 8 caractere.';
+        return Teacher.saveTeacher(t.id, name, pw).then(function () { teacherMsg('Profesorul ' + name + ' a fost salvat.'); loadTeacher(); });
+      }
+    });
+  }
+
+  $('class-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var name = $('class-name').value.trim();
+    if (!name) return;
+    teacherAction(Teacher.saveClass(null, name), 'Clasa ' + name + ' a fost adăugată.').then(function () { $('class-name').value = ''; });
+  });
+
+  $('teacher-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var name = $('teacher-name').value.trim(), pw = $('teacher-pass').value;
+    if (!name) return;
+    if (pw.length < 8) { teacherMsg('Parola profesorului trebuie să aibă cel puțin 8 caractere.'); return; }
+    teacherAction(Teacher.saveTeacher(null, name, pw), 'Profesorul ' + name + ' a fost adăugat.').then(function () {
+      $('teacher-name').value = '';
+      $('teacher-pass').value = '';
+    });
+  });
+
+  $('t-add-students').addEventListener('click', function () {
+    var preset = /^\d+$/.test(classFilter) ? classFilter : '';
+    formModal({
+      title: 'Adaugă elevi', submit: 'Adaugă',
+      body: '<div class="modal-form"><label>Elevii (unul pe rând, ex. Ana.P)<textarea id="f-names" spellcheck="false"></textarea></label>' +
+        '<label>În clasa<select id="f-class"><option value="">Fără clasă</option>' + classOptions(false) + '</select></label></div>',
+      onSubmit: function (b) {
+        var parts = b.querySelector('#f-names').value.split(/[\n,;]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+        var names = [], bad = [];
+        parts.forEach(function (x) {
+          var n = Store.normalizeName(x);
+          if (!n) bad.push(x); else if (names.indexOf(n) < 0) names.push(n);
+        });
+        if (bad.length) return 'Format greșit: ' + bad.join(', ') + '. Folosește prenume, punct și inițiala (ex. Ana.P).';
+        if (!names.length) return 'Scrie cel puțin un nume.';
+        var cid = b.querySelector('#f-class').value;
+        return Teacher.addStudents(names, cid ? Number(cid) : null).then(function () {
+          teacherMsg(names.length + ' elevi adăugați' + (cid ? ' în clasa ' + className(Number(cid)) : '') + '.');
+          loadTeacher();
+        });
+      }
+    });
+    if (preset) $('f-class').value = preset;
+  });
+
+  function updateBulkBar() {
+    var n = Object.keys(selected).length;
+    $('bulk-bar').hidden = !n;
+    $('bulk-count').textContent = n + (n === 1 ? ' copil selectat' : ' copii selectați');
+  }
+
+  $('bulk-move').addEventListener('click', function () {
+    var names = Object.keys(selected);
+    var v = $('bulk-class').value;
+    var cid = v === 'none' ? null : Number(v);
+    selected = {};
+    teacherAction(Teacher.setStudentClass(names, cid),
+      names.length + ' copii mutați ' + (cid == null ? 'fără clasă' : 'în clasa ' + className(cid)) + '.');
+  });
+
+  $('select-all').addEventListener('change', function () {
+    var on = $('select-all').checked;
+    qsa('#kids-body input.pick').forEach(function (cb) {
+      cb.checked = on;
+      if (on) selected[cb.dataset.name] = true; else delete selected[cb.dataset.name];
+    });
+    updateBulkBar();
+  });
+
   function renderTeacher() {
     var all = teacherData;
-    var names = sortedNames(all);
+    var isCloud = Cloud.enabled;
+    if (isCloud) renderFilter();
+    var names = sortedNames(all).filter(function (n) { return !isCloud || inFilter(all[n]); });
+    Object.keys(selected).forEach(function (n) { if (names.indexOf(n) < 0) delete selected[n]; });
     renderSortHeaders();
+    renderManage();
+    if (staff.role === 'admin') {
+      $('bulk-class').innerHTML = classOptions(true);
+      $('select-all').checked = false;
+      updateBulkBar();
+    }
 
     var multiWorld = WORLDS.filter(function (w) { return w.available; }).length > 1;
     $('kids-table').classList.toggle('single-world', !multiWorld);
@@ -1276,8 +1554,10 @@
     var body = $('kids-body');
     body.innerHTML = '';
     if (!names.length) {
-      body.innerHTML = '<tr><td colspan="6" class="empty">' +
-        (Cloud.enabled ? 'Încă nu a intrat niciun copil.' : 'Încă nu a intrat niciun copil pe acest calculator.') + '</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" class="empty">' + (Cloud.enabled
+        ? (staff.role === 'teacher' && !staff.classes.length ? 'Nu ai nicio clasă încă. Cere administratorului să te adauge la o clasă.'
+          : classFilter === 'all' ? 'Încă nu a intrat niciun copil.' : 'Niciun copil în această clasă.')
+        : 'Încă nu a intrat niciun copil pe acest calculator.') + '</td></tr>';
       return;
     }
     names.forEach(function (n) {
@@ -1286,14 +1566,38 @@
       var done = Object.keys(p.progress).length;
       var tr = document.createElement('tr');
       tr.innerHTML =
+        '<td class="col-select admin-only"><input class="pick" type="checkbox"></td>' +
         '<td><div class="kid-cell"><img alt=""><span></span></div></td>' +
+        '<td class="col-class cloud-only"></td>' +
         '<td>' + (best ? 'Nivelul ' + best.id + ' <small>(' + missionLabel(worldById(best.world)) + ', ' + done + ' terminate)</small>' : '—') + '</td>' +
         '<td>' + Store.totalStars(p) + '</td>' +
-        '<td><div class="world-toggles"></div></td>' +
+        '<td class="col-worlds"><div class="world-toggles"></div></td>' +
         '<td>' + formatDate(p.lastSeen) + '</td>' +
         '<td><button type="button" class="btn btn-ghost btn-sm del-kid" aria-label="Șterge profilul">🗑</button></td>';
       tr.querySelector('img').src = avatarSrc(p);
       tr.querySelector('.kid-cell span').textContent = n;
+      var pick = tr.querySelector('.pick');
+      pick.dataset.name = n;
+      pick.checked = !!selected[n];
+      pick.setAttribute('aria-label', 'Selectează ' + n);
+      pick.addEventListener('change', function () {
+        if (pick.checked) selected[n] = true; else delete selected[n];
+        updateBulkBar();
+      });
+      var classCell = tr.querySelector('.col-class');
+      if (staff.role === 'admin') {
+        var sel = document.createElement('select');
+        sel.setAttribute('aria-label', 'Clasa lui ' + n);
+        sel.innerHTML = '<option value="none">Fără clasă</option>' + classOptions(false);
+        sel.value = p.classId == null ? 'none' : String(p.classId);
+        sel.addEventListener('change', function () {
+          var cid = sel.value === 'none' ? null : Number(sel.value);
+          teacherAction(Teacher.setStudentClass([n], cid), n + (cid == null ? ' a rămas fără clasă.' : ' a fost mutat în clasa ' + className(cid) + '.'));
+        });
+        classCell.appendChild(sel);
+      } else {
+        classCell.textContent = className(p.classId) || '—';
+      }
       var toggles = tr.querySelector('.world-toggles');
       WORLDS.filter(function (w) { return w.available; }).forEach(function (w) {
         var on = Store.isWorldUnlocked(p, w.id);
@@ -1305,12 +1609,13 @@
         b.title = (on ? 'Închide' : 'Deschide') + ' ' + missionLabel(w) + ' pentru ' + n;
         b.disabled = w.id === 1;
         b.addEventListener('click', function () {
-          teacherAction(Teacher.setWorld(n, w.id, !on),
+          teacherAction(Teacher.setWorld(n, w.id, !on, null),
             missionLabel(w) + ' a fost ' + (on ? 'închisă' : 'deschisă') + ' pentru ' + n + '.');
         });
         toggles.appendChild(b);
       });
-      tr.querySelector('.del-kid').addEventListener('click', function () {
+      if (staff.role === 'teacher') tr.querySelector('.del-kid').remove();
+      else tr.querySelector('.del-kid').addEventListener('click', function () {
         showModal({
           title: 'Ștergi profilul ' + n + '?',
           body: Cloud.enabled
@@ -1326,8 +1631,8 @@
   }
 
   function bulkWorld(worldId, unlocked) {
-    var count = Object.keys(teacherData).length;
-    teacherAction(Teacher.setWorld(null, worldId, unlocked),
+    var count = sortedNames(teacherData).filter(function (n) { return !Cloud.enabled || inFilter(teacherData[n]); }).length;
+    teacherAction(Teacher.setWorld(null, worldId, unlocked, Cloud.enabled ? filterClassId() : null),
       missionLabel(worldById(worldId)) + ' a fost ' + (unlocked ? 'deschisă' : 'închisă') + ' pentru ' + count + ' copii.');
   }
 
@@ -1357,11 +1662,11 @@
 
   $('t-export-csv').addEventListener('click', function () {
     var all = teacherData;
-    var rows = [['Copil', 'Nivel atins', 'Nivele terminate', 'Stele', 'Misiuni deschise', 'Ultima activitate']];
-    sortedNames(all).forEach(function (n) {
+    var rows = [['Copil', 'Clasa', 'Nivel atins', 'Nivele terminate', 'Stele', 'Misiuni deschise', 'Ultima activitate']];
+    sortedNames(all).filter(function (n) { return !Cloud.enabled || inFilter(all[n]); }).forEach(function (n) {
       var p = all[n];
       var best = highestLevel(p);
-      rows.push([n, best ? best.id : 0, Object.keys(p.progress).length, Store.totalStars(p),
+      rows.push([n, className(p.classId), best ? best.id : 0, Object.keys(p.progress).length, Store.totalStars(p),
         p.worlds.map(function (id) { var w = worldById(id); return w ? w.number : id; }).join(' '), formatDate(p.lastSeen)]);
     });
     var csv = '﻿' + rows.map(function (r) { return r.map(csvCell).join(';'); }).join('\r\n');
@@ -1369,7 +1674,9 @@
   });
 
   $('t-export-json').addEventListener('click', function () {
-    download('labirint-backup-' + new Date().toISOString().slice(0, 10) + '.json', Store.exportJSON(teacherData), 'application/json');
+    var shown = {};
+    Object.keys(teacherData).forEach(function (n) { if (!Cloud.enabled || inFilter(teacherData[n])) shown[n] = teacherData[n]; });
+    download('labirint-backup-' + new Date().toISOString().slice(0, 10) + '.json', Store.exportJSON(shown), 'application/json');
   });
 
   $('t-import').addEventListener('click', function () { $('t-import-file').click(); });

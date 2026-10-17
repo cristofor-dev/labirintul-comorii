@@ -105,14 +105,38 @@
     return Promise.race([rpc('get_student', { p_name: name }).catch(function () { return null; }), timeout]);
   }
 
-  // ---------- Profesor ----------
+  // ---------- Personal: administrator și profesori ----------
+  // `a` = { user, pw }: utilizatorul („admin” sau numele profesorului) și parola lui.
+  function auth(a, extra) {
+    var o = { p_user: a.user || '', p_password: a.pw };
+    Object.keys(extra || {}).forEach(function (k) { o[k] = extra[k]; });
+    return o;
+  }
+
   var teacher = {
-    list: function (pw) { return rpc('teacher_students', { p_password: pw }).then(function (d) { return d || {}; }); },
-    setWorld: function (pw, name, world, open) {
-      return rpc('teacher_set_world', { p_password: pw, p_name: name, p_world: world, p_open: open });
+    // { role, name, classes: [{id, name, teachers}], teachers: [{id, name}], students: { nume: profil cu classId } }
+    overview: function (a) { return rpc('staff_overview', auth(a)); },
+    // classId: null = toate clasele vizibile, -1 = copiii fără clasă, altfel id-ul clasei
+    setWorld: function (a, name, world, open, classId) {
+      return rpc('teacher_set_world', auth(a, { p_name: name, p_world: world, p_open: open, p_class: classId == null ? null : classId }));
     },
-    remove: function (pw, name) { return rpc('teacher_delete_student', { p_password: pw, p_name: name }); },
-    changePassword: function (pw, next) { return rpc('teacher_change_password', { p_password: pw, p_new: next }); }
+    remove: function (a, name) { return rpc('teacher_delete_student', auth(a, { p_name: name })); },
+    changePassword: function (a, next) { return rpc('staff_change_password', auth(a, { p_new: next })); },
+    saveClass: function (a, id, name) { return rpc('admin_save_class', auth(a, { p_id: id, p_name: name })); },
+    deleteClass: function (a, id) { return rpc('admin_delete_class', auth(a, { p_id: id })); },
+    saveTeacher: function (a, id, name, password) {
+      return rpc('admin_save_teacher', auth(a, { p_id: id, p_name: name, p_new_password: password || null }));
+    },
+    deleteTeacher: function (a, id) { return rpc('admin_delete_teacher', auth(a, { p_id: id })); },
+    setClassTeachers: function (a, classId, teacherIds) {
+      return rpc('admin_set_class_teachers', auth(a, { p_class: classId, p_teachers: teacherIds }));
+    },
+    setStudentClass: function (a, names, classId) {
+      return rpc('admin_set_student_class', auth(a, { p_names: names, p_class: classId }));
+    },
+    addStudents: function (a, names, classId) {
+      return rpc('admin_add_students', auth(a, { p_names: names, p_class: classId }));
+    }
   };
 
   if (enabled) {

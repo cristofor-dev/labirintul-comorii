@@ -10,8 +10,12 @@ Panoul profesorului nu are buton pe ecranul copiilor: se deschide cu `#profesor`
 
 1. Creează un proiect pe supabase.com.
 2. În SQL Editor, rulează tot fișierul `supabase/schema.sql`.
-3. Tot acolo, setează parola profesorului (minim 8 caractere): `select public.set_teacher_password('parola-ta');`
+3. Tot acolo, setează parola administratorului (minim 8 caractere): `select public.set_teacher_password('parola-ta');`
 4. Din Project Settings → API, copiază „Project URL” și cheia publică (Publishable / anon) în `js/config.js`.
+
+### Clase și profesori
+
+Intri în panou cu utilizatorul `admin` și parola de mai sus. Administratorul creează clase și profesori (fiecare cu parola lui), alege profesorii fiecărei clase și pune copiii în clase (rând cu rând, în grup, sau cu „Adaugă elevi”). Un profesor se autentifică cu numele lui și vede, deschide misiuni și exportă rezultatele doar pentru clasele lui; administratorul vede tot și poate filtra după clasă.
 
 Cheia publică nu are acces direct la tabele; site-ul folosește doar funcțiile din `schema.sql`. Pozele încărcate de copii rămân doar pe calculatorul lor. Fără configurare, jocul merge ca înainte, doar local.
 

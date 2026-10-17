@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=22">
+  <link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
 
@@ -140,7 +140,7 @@
   </section>
 
   <!-- ===== Panou profesor ===== -->
-  <section id="screen-teacher" class="screen" hidden>
+  <section id="screen-teacher" class="screen" data-role="local" hidden>
     <header class="topbar">
       <button id="teacher-back" class="btn btn-ghost" type="button">← Înapoi</button>
       <h2 class="game-title">Panoul profesorului</h2>
@@ -150,6 +150,7 @@
       <form id="pin-form" class="panel pin-panel" autocomplete="off">
         <h3 id="pin-title">PIN profesor</h3>
         <p id="pin-help" class="lead"></p>
+        <input id="pin-user" class="pin-text" type="text" placeholder="Utilizator (admin sau numele tău)" autocapitalize="none" spellcheck="false" maxlength="40" hidden>
         <input id="pin-1" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="PIN">
         <input id="pin-2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="Repetă PIN-ul" hidden>
         <p id="pin-error" class="error" role="alert"></p>
@@ -157,6 +158,33 @@
       </form>
 
       <div id="teacher-content" hidden>
+        <div class="panel who-panel cloud-only">
+          <span id="who-label"></span>
+          <label class="class-filter">Clasa
+            <select id="class-filter"></select>
+          </label>
+        </div>
+        <div class="panel manage-panel admin-only">
+          <div class="manage-cols">
+            <section>
+              <h3>Clase</h3>
+              <ul id="class-list" class="manage-list"></ul>
+              <form id="class-form" class="inline-form" autocomplete="off">
+                <input id="class-name" placeholder="Clasă nouă, ex. 3A" maxlength="40">
+                <button class="btn btn-primary btn-sm" type="submit">Adaugă clasa</button>
+              </form>
+            </section>
+            <section>
+              <h3>Profesori</h3>
+              <ul id="teacher-list" class="manage-list"></ul>
+              <form id="teacher-form" class="inline-form" autocomplete="off">
+                <input id="teacher-name" placeholder="Nume profesor" maxlength="40">
+                <input id="teacher-pass" type="password" placeholder="Parolă (min. 8)" maxlength="64" autocomplete="new-password">
+                <button class="btn btn-primary btn-sm" type="submit">Adaugă profesorul</button>
+              </form>
+            </section>
+          </div>
+        </div>
         <div class="panel missions-panel">
           <h3>Misiuni</h3>
           <div id="missions" class="missions"></div>
@@ -164,6 +192,7 @@
         <div class="panel">
           <div class="teacher-tools">
             <div class="tool-group">
+              <button id="t-add-students" class="btn btn-primary btn-sm admin-only" type="button">+ Adaugă elevi</button>
               <button id="t-export-csv" class="btn btn-ghost btn-sm" type="button">⬇ Export CSV</button>
               <button id="t-export-json" class="btn btn-ghost btn-sm" type="button">⬇ Backup JSON</button>
               <button id="t-import" class="btn btn-ghost btn-sm" type="button">⬆ Import JSON</button>
@@ -173,13 +202,20 @@
             </div>
           </div>
           <p id="teacher-msg" class="msg" role="status"></p>
+          <div id="bulk-bar" class="bulk-bar admin-only" hidden>
+            <span id="bulk-count"></span>
+            <select id="bulk-class" aria-label="Clasa"></select>
+            <button id="bulk-move" class="btn btn-primary btn-sm" type="button">Mută în clasă</button>
+          </div>
           <div class="table-wrap">
             <table id="kids-table" class="kids-table">
               <thead><tr>
+                <th class="col-select admin-only"><input id="select-all" type="checkbox" aria-label="Selectează toți copiii"></th>
                 <th data-sort="name"><button type="button" class="th-sort">Copil</button></th>
+                <th data-sort="class" class="col-class cloud-only"><button type="button" class="th-sort">Clasa</button></th>
                 <th data-sort="level"><button type="button" class="th-sort">Nivel atins</button></th>
                 <th data-sort="stars"><button type="button" class="th-sort" aria-label="Stele">⭐</button></th>
-                <th data-sort="worlds"><button type="button" class="th-sort">Misiuni deschise</button></th>
+                <th data-sort="worlds" class="col-worlds"><button type="button" class="th-sort">Misiuni deschise</button></th>
                 <th data-sort="date"><button type="button" class="th-sort">Ultima dată</button></th>
                 <th></th>
               </tr></thead>
@@ -202,13 +238,13 @@
     </div>
   </div>
 
-  <script src="js/levels.js?v=22"></script>
-  <script src="js/engine.js?v=22"></script>
-  <script src="js/storage.js?v=22"></script>
-  <script src="js/config.js?v=22"></script>
-  <script src="js/cloud.js?v=22"></script>
-  <script src="js/editor.js?v=22"></script>
-  <script src="js/python.js?v=22"></script>
-  <script src="js/app.js?v=22"></script>
+  <script src="js/levels.js?v=23"></script>
+  <script src="js/engine.js?v=23"></script>
+  <script src="js/storage.js?v=23"></script>
+  <script src="js/config.js?v=23"></script>
+  <script src="js/cloud.js?v=23"></script>
+  <script src="js/editor.js?v=23"></script>
+  <script src="js/python.js?v=23"></script>
+  <script src="js/app.js?v=23"></script>
 </body>
 </html>
