@@ -173,6 +173,7 @@
   }
 
   function enterGame() {
+    mapWorld = null;
     save();
     Store.setCurrent(profile.name);
     syncProfile();
@@ -301,6 +302,17 @@
     return !!profile.progress[prev.id];
   }
 
+  // Harta Academiei: Academia sus, apoi un drum prin toate misiunile din carnet (insignele).
+  // Misiunile deschise se pot apăsa; cele închise sau încă nefăcute stau în ceață, cu lacăt.
+  var COURSE_MISSIONS = 9;
+  var STOP_X = [50, 27, 71, 30, 69, 29, 70, 33, 66, 50]; // poziția pe orizontală (%), Academia prima
+  var STOP_Y0 = 105, STOP_STEP = 158, FOG_STEP = 112; // misiunile din ceață stau mai strâns
+  var DECOR = ['🌳', '⛰️', '🌲', '🌸', '🏡', '🌲', '🌊', '🌻', '⛰️', '🌳'];
+  var mapWorld = null; // misiunea deschisă de pe hartă (null = harta Academiei)
+
+  function worldOpen(w) { return !!w && w.available && (!!preview || Store.isWorldUnlocked(profile, w.id)); }
+  function worldLevels(w) { return LEVELS.filter(function (l) { return l.world === w.id; }); }
+
   function showMap() {
     stopRun();
     fillKid();
@@ -310,44 +322,154 @@
     $('map-logout').textContent = preview ? '← Panoul profesorului' : 'Ieșire';
     var box = $('worlds');
     box.innerHTML = '';
-    WORLDS.forEach(function (w) {
-      var levels = LEVELS.filter(function (l) { return l.world === w.id; });
-      if (!w.available) return; // misiunile încă în lucru nu apar deloc pe hartă
-      if (preview && w.id !== preview.world) return;
-      if (!preview && !Store.isWorldUnlocked(profile, w.id)) return; // misiunile închise nu se văd până le deschide profesorul
-      var done = levels.filter(function (l) { return profile.progress[l.id]; }).length;
-      var stars = levels.reduce(function (s, l) { return s + ((profile.progress[l.id] || {}).stars || 0); }, 0);
-      var sec = document.createElement('section');
-      sec.className = 'world';
-      sec.style.setProperty('--world', w.color);
-      sec.innerHTML =
-        '<div class="world-head"><span class="world-icon">' + w.icon + '</span>' +
-        '<div class="world-title"><span class="eyebrow">' + missionLabel(w) + '</span><h2>' + w.name + '</h2><p>' + w.intro + '</p></div>' +
-        '<div class="world-progress"><div class="wp-top"><span>' + done + ' din ' + levels.length + ' nivele</span>' +
-        '<span class="wp-stars">★ ' + stars + '/' + levels.length * 3 + '</span></div>' +
-        '<div class="bar"><span style="width:' + Math.round(done / levels.length * 100) + '%"></span></div></div></div>' +
-        '<div class="level-grid"></div>';
-      var grid = sec.querySelector('.level-grid');
-      var current = true;
-      levels.forEach(function (l) {
-        var unlocked = levelUnlocked(l);
-        var prog = profile.progress[l.id];
-        var isNext = unlocked && !prog && current;
-        if (isNext) current = false;
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'level-btn' + (prog ? ' done' : '') + (unlocked ? '' : ' locked') + (isNext ? ' next' : '');
-        b.disabled = !unlocked;
-        b.innerHTML = '<span class="lvl-num">' + (unlocked ? levelNo(l) : '🔒') + '</span>' +
-          '<span class="lvl-name">' + l.name + '</span>' +
-          '<span class="lvl-stars">' + starsHtml(prog ? prog.stars : 0) + '</span>' +
-          (isNext ? '<span class="lvl-tag">Joacă</span>' : '');
-        b.addEventListener('click', function () { openLevel(l); });
-        grid.appendChild(b);
-      });
-      box.appendChild(sec);
-    });
+    var w = preview ? worldById(preview.world) : (mapWorld ? worldById(mapWorld) : null);
+    if (w && !worldOpen(w)) w = null;
+    box.classList.toggle('on-map', !w);
+    if (w) renderMission(box, w); else renderAcademyMap(box);
     show('screen-map');
+  }
+
+  function openMission(id) {
+    mapWorld = id;
+    showMap();
+    window.scrollTo(0, 0);
+  }
+
+  function renderAcademyMap(box) {
+    var stops = [{ academy: true }];
+    var current = null;
+    for (var n = 1; n <= COURSE_MISSIONS; n++) {
+      var w = WORLDS.filter(function (x) { return x.number === n; })[0];
+      var stop = { number: n, world: worldOpen(w) ? w : null };
+      if (stop.world) {
+        var levels = worldLevels(w);
+        stop.done = levels.filter(function (l) { return profile.progress[l.id]; }).length;
+        stop.total = levels.length;
+        stop.stars = levels.reduce(function (s, l) { return s + ((profile.progress[l.id] || {}).stars || 0); }, 0);
+        if (!current && stop.done < stop.total) current = stop;
+      }
+      stops.push(stop);
+    }
+    var open = stops.filter(function (x) { return x.world; });
+    if (!current) current = open[open.length - 1] || null;
+    var lastOpen = stops.indexOf(open[open.length - 1]);
+    var reached = current ? stops.indexOf(current) : 0;
+
+    var y = STOP_Y0 - STOP_STEP;
+    var pts = stops.map(function (x, i) {
+      y += x.academy || x.world ? STOP_STEP + (i === 1 ? 24 : 0) : FOG_STEP; // după Academie, puțin mai mult loc
+      return { x: STOP_X[i], y: y };
+    });
+    var height = y + 110;
+    function curve(from, to) {
+      var d = 'M' + pts[from].x + ' ' + pts[from].y;
+      for (var i = from + 1; i <= to; i++) {
+        var a = pts[i - 1], b = pts[i], my = (a.y + b.y) / 2;
+        d += ' C' + a.x + ' ' + my + ' ' + b.x + ' ' + my + ' ' + b.x + ' ' + b.y;
+      }
+      return d;
+    }
+
+    var map = document.createElement('div');
+    map.className = 'adv-map';
+    map.style.height = height + 'px';
+    var fogTop = lastOpen >= 0 ? pts[lastOpen].y + 90 : STOP_Y0;
+    map.innerHTML =
+      '<svg class="adv-path" viewBox="0 0 100 ' + height + '" preserveAspectRatio="none" aria-hidden="true">' +
+        '<path class="road" d="' + curve(0, stops.length - 1) + '"/>' +
+        '<path class="road-line" d="' + curve(0, stops.length - 1) + '"/>' +
+        (reached ? '<path class="road-done" d="' + curve(0, reached) + '"/>' : '') +
+      '</svg>' +
+      '<div class="adv-fog" style="top:' + fogTop + 'px" aria-hidden="true"></div>';
+
+    stops.forEach(function (x, i) {
+      var p = pts[i];
+      // decor pe partea cealaltă a drumului
+      var deco = document.createElement('span');
+      deco.className = 'adv-deco';
+      deco.setAttribute('aria-hidden', 'true');
+      deco.textContent = DECOR[i % DECOR.length];
+      deco.style.left = (p.x < 50 ? Math.min(p.x + 42, 90) : Math.max(p.x - 42, 10)) + '%';
+      deco.style.top = (p.y - 30 + (i % 3) * 22) + 'px';
+      map.appendChild(deco);
+
+      var el;
+      if (x.academy) {
+        el = document.createElement('div');
+        el.className = 'stop academy';
+        el.innerHTML = '<span class="stop-icon"><img src="assets/personaje/bufnita.png" alt=""></span>' +
+          '<span class="stop-label"><b>Academia Eroilor Isteți</b><small>Gândește, încearcă, învață!</small></span>';
+      } else if (x.world) {
+        var w = x.world;
+        var complete = x.done === x.total;
+        el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'stop mission' + (complete ? ' complete' : '') + (x === current ? ' current' : '');
+        el.style.setProperty('--world', w.color);
+        el.innerHTML = '<span class="stop-icon">' + w.icon + (complete ? '<i class="stop-badge" title="Misiune terminată">✓</i>' : '') + '</span>' +
+          '<span class="stop-label"><small>' + missionLabel(w) + '</small><b>' + w.name + '</b>' +
+          '<span class="stop-stars">★ ' + x.stars + '/' + x.total * 3 + ' · ' + x.done + ' din ' + x.total + '</span></span>';
+        if (x === current) {
+          var me = document.createElement('img');
+          me.className = 'stop-me';
+          me.alt = '';
+          me.src = avatarSrc(profile);
+          el.querySelector('.stop-icon').appendChild(me);
+        }
+        el.addEventListener('click', function () { openMission(w.id); });
+      } else {
+        el = document.createElement('div');
+        el.className = 'stop fog';
+        el.innerHTML = '<span class="stop-icon">🔒</span><span class="stop-label"><small>Misiunea ' + x.number + '</small><b>În ceață…</b></span>';
+      }
+      el.style.left = p.x + '%';
+      el.style.top = p.y + 'px';
+      map.appendChild(el);
+    });
+    box.appendChild(map);
+  }
+
+  function renderMission(box, w) {
+    if (!preview) {
+      var back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'btn btn-ghost mission-back';
+      back.textContent = '← Harta Academiei';
+      back.addEventListener('click', function () { mapWorld = null; showMap(); });
+      box.appendChild(back);
+    }
+    var levels = worldLevels(w);
+    var done = levels.filter(function (l) { return profile.progress[l.id]; }).length;
+    var stars = levels.reduce(function (s, l) { return s + ((profile.progress[l.id] || {}).stars || 0); }, 0);
+    var sec = document.createElement('section');
+    sec.className = 'world';
+    sec.style.setProperty('--world', w.color);
+    sec.innerHTML =
+      '<div class="world-head"><span class="world-icon">' + w.icon + '</span>' +
+      '<div class="world-title"><span class="eyebrow">' + missionLabel(w) + '</span><h2>' + w.name + '</h2><p>' + w.intro + '</p></div>' +
+      '<div class="world-progress"><div class="wp-top"><span>' + done + ' din ' + levels.length + ' nivele</span>' +
+      '<span class="wp-stars">★ ' + stars + '/' + levels.length * 3 + '</span></div>' +
+      '<div class="bar"><span style="width:' + Math.round(done / levels.length * 100) + '%"></span></div></div></div>' +
+      '<div class="level-grid"></div>';
+    var grid = sec.querySelector('.level-grid');
+    var current = true;
+    levels.forEach(function (l) {
+      var unlocked = levelUnlocked(l);
+      var prog = profile.progress[l.id];
+      var isNext = unlocked && !prog && current;
+      if (isNext) current = false;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'level-btn' + (prog ? ' done' : '') + (unlocked ? '' : ' locked') + (isNext ? ' next' : '');
+      b.disabled = !unlocked;
+      b.innerHTML = '<span class="lvl-num">' + (unlocked ? levelNo(l) : '🔒') + '</span>' +
+        '<span class="lvl-name">' + l.name + '</span>' +
+        '<span class="lvl-stars">' + starsHtml(prog ? prog.stars : 0) + '</span>' +
+        (isNext ? '<span class="lvl-tag">Joacă</span>' : '');
+      b.addEventListener('click', function () { openLevel(l); });
+      grid.appendChild(b);
+    });
+    box.appendChild(sec);
   }
 
   $('map-change-avatar').addEventListener('click', showAvatar);
@@ -475,6 +597,7 @@
     // programele salvate cu blocuri care nu mai sunt în nivel (de ex. rotirile scoase) nu se mai încarcă
     if (Object.keys(Engine.usedTypes(saved)).some(function (t) { return level.blocks.indexOf(t) < 0; })) saved = [];
     game = { level: level, mapIndex: 0, map: null, editor: null, run: null };
+    mapWorld = level.world; // „← Hartă” din joc te duce înapoi la misiunea nivelului
     var world = worldById(level.world);
     $('game-title').textContent = 'Nivelul ' + levelNo(level) + ' · ' + level.name;
     document.documentElement.style.setProperty('--world', world.color);
@@ -940,7 +1063,7 @@
       body += '<p>Program perfect, cu doar ' + blocks + ' blocuri!</p>';
     }
     var actions = [{ label: 'Mai încerc', cls: 'btn-ghost', onClick: resetHero },
-      { label: 'Harta', cls: 'btn-ghost', onClick: showMap }];
+      { label: 'Nivele', cls: 'btn-ghost', onClick: showMap }];
 
     var mission = missionLabel(worldById(level.world));
     if (next && next.world !== level.world &&

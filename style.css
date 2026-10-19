@@ -164,6 +164,83 @@ img { display: block; }
 .bar { height: 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; }
 .bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--world), var(--primary-2)); transition: width .6s var(--ease); }
 
+.mission-back { justify-self: start; }
+
+/* Harta Academiei: drumul prin misiuni */
+.adv-map {
+  position: relative; width: 100%; max-width: 760px; margin: 0 auto; overflow: hidden; border-radius: 32px;
+  background:
+    radial-gradient(ellipse 60% 140px at 50% 0, rgba(255, 255, 255, .9), transparent),
+    radial-gradient(circle at 12% 30%, rgba(134, 239, 172, .55), transparent 28%),
+    radial-gradient(circle at 88% 55%, rgba(125, 211, 252, .45), transparent 26%),
+    linear-gradient(180deg, #e0f2fe 0, #dcfce7 160px, #d9f99d 55%, #bbf7d0 100%);
+  border: 1px solid rgba(22, 101, 52, .12); box-shadow: var(--sh);
+}
+.adv-path { position: absolute; inset: 0; width: 100%; height: 100%; }
+.adv-path path { fill: none; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.adv-path .road { stroke: #fde68a; stroke-width: 26px; filter: drop-shadow(0 2px 0 rgba(161, 98, 7, .25)); }
+.adv-path .road-line { stroke: #f59e0b; stroke-width: 3px; stroke-dasharray: 2 12; opacity: .55; }
+.adv-path .road-done { stroke: var(--primary); stroke-width: 6px; stroke-dasharray: 1 12; opacity: .8; }
+.adv-fog {
+  position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0), rgba(241, 245, 249, .82) 110px, rgba(226, 232, 240, .92));
+}
+.adv-deco { position: absolute; font-size: 2rem; transform: translate(-50%, -50%); opacity: .85; pointer-events: none; filter: drop-shadow(0 4px 3px rgba(0, 0, 0, .12)); }
+
+.stop {
+  position: absolute; transform: translate(-50%, -42px); z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; width: 190px;
+  padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: center;
+}
+.stop-icon {
+  position: relative; width: 84px; height: 84px; display: grid; place-items: center; font-size: 2.4rem;
+  border-radius: 28px; background: var(--surface); box-shadow: 0 0 0 5px #fff, 0 14px 24px -10px rgba(17, 24, 39, .35);
+}
+.stop-label { display: grid; gap: 1px; padding: 6px 12px; border-radius: 14px; background: rgba(255, 255, 255, .88); box-shadow: var(--sh-sm); backdrop-filter: blur(4px); }
+.stop-label small { font-size: .7rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; color: var(--world); }
+.stop-label b { font-size: 1rem; font-weight: 900; line-height: 1.2; }
+.stop-stars { font-size: .8rem; font-weight: 800; color: #b45309; }
+
+.stop.academy .stop-icon { width: 104px; height: 104px; border-radius: 50%; background: linear-gradient(160deg, #eef0ff, #fff); box-shadow: 0 0 0 6px #fff, 0 0 0 10px var(--gold), 0 18px 30px -12px rgba(17, 24, 39, .4); }
+.stop.academy { transform: translate(-50%, -52px); width: 230px; }
+.stop.academy img { width: 86%; height: 86%; object-fit: contain; }
+.stop.academy .stop-label b { font-size: 1.15rem; color: #3730a3; }
+.stop.academy .stop-label small { color: var(--muted); text-transform: none; letter-spacing: 0; font-size: .8rem; font-style: italic; }
+
+.stop.mission { cursor: pointer; }
+.stop.mission .stop-icon { background: linear-gradient(160deg, color-mix(in srgb, var(--world) 16%, #fff), #fff); box-shadow: 0 0 0 5px #fff, 0 0 0 8px var(--world), 0 14px 24px -10px rgba(17, 24, 39, .4); transition: transform .2s var(--ease); }
+.stop.mission:hover .stop-icon, .stop.mission:focus-visible .stop-icon { transform: translateY(-4px) scale(1.05); }
+.stop.mission:focus-visible { outline: none; }
+.stop.mission:focus-visible .stop-label { box-shadow: var(--ring); }
+.stop.current .stop-icon { animation: stoppulse 2s ease-in-out infinite; }
+.stop-me {
+  position: absolute; right: -30px; top: -26px; width: 48px; height: 48px; object-fit: contain; border-radius: 50%;
+  background: #fff; box-shadow: 0 0 0 3px var(--gold), 0 6px 12px -4px rgba(0, 0, 0, .3); animation: hop 1.6s ease-in-out infinite;
+}
+.stop-badge {
+  position: absolute; right: -8px; bottom: -8px; width: 30px; height: 30px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--go); color: #fff; font-style: normal; font-size: 1rem; font-weight: 900; box-shadow: 0 0 0 3px #fff;
+}
+.stop.fog { z-index: 2; opacity: .8; }
+.stop.fog .stop-icon { font-size: 1.8rem; background: #e2e8f0; box-shadow: 0 0 0 5px rgba(255, 255, 255, .8), 0 0 30px 14px rgba(255, 255, 255, .9); filter: grayscale(1); }
+.stop.fog .stop-label { background: rgba(255, 255, 255, .6); color: var(--muted); }
+.stop.fog .stop-label small { color: var(--muted); }
+.stop.fog { transform: translate(-50%, -32px); }
+.stop.fog .stop-icon { width: 64px; height: 64px; font-size: 1.5rem; border-radius: 22px; }
+@keyframes stoppulse {
+  0%, 100% { box-shadow: 0 0 0 5px #fff, 0 0 0 8px var(--world), 0 0 0 8px color-mix(in srgb, var(--world) 30%, transparent), 0 14px 24px -10px rgba(17, 24, 39, .4); }
+  50% { box-shadow: 0 0 0 5px #fff, 0 0 0 8px var(--world), 0 0 0 20px color-mix(in srgb, var(--world) 0%, transparent), 0 14px 24px -10px rgba(17, 24, 39, .4); }
+}
+@media (max-width: 560px) {
+  .stop { width: 150px; }
+  .stop.academy { width: 250px; transform: translate(-50%, -46px); }
+  .stop.academy .stop-icon { width: 88px; height: 88px; }
+  .stop.academy .stop-label b { font-size: 1rem; white-space: nowrap; }
+  .stop-icon { width: 70px; height: 70px; font-size: 2rem; border-radius: 22px; }
+  .stop-label b { font-size: .9rem; }
+  .adv-deco { font-size: 1.5rem; }
+}
+
 .level-grid { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; padding-top: 6px; }
 .level-btn {
   position: relative; cursor: pointer;
