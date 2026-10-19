@@ -261,6 +261,27 @@ img { display: block; }
   box-shadow: inset 0 4px 0 #78350f, inset 0 -4px 0 #78350f;
 }
 .cell.path.lava::before, .cell.path.water::before { display: none; }
+
+/* Misiunea 1: robotul desenator. Tabla e o coală pe un șevalet; linia punctată e modelul. */
+.board.drawing { background: linear-gradient(160deg, #a16207, #854d0e); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), 0 20px 40px -18px rgba(133, 77, 14, .7); }
+.board.drawing .cell.wall::before { display: none; }
+.board.drawing .cell.path { background: #fff; }
+.board.drawing .cell.path::before { box-shadow: inset 0 0 0 .5px rgba(100, 116, 139, .16); }
+.board.drawing .cell.start { background: #fff; }
+.cell.ink::after {
+  content: ''; position: absolute; inset: 22%; border-radius: 30%;
+  border: 2px dashed color-mix(in srgb, var(--world) 55%, #fff); transition: all .2s;
+}
+.board.drawing .cell.path.ink.trail::after {
+  inset: 12%; left: 12%; top: 12%; width: auto; height: auto; transform: none; opacity: 1;
+  border: 0; border-radius: 26%; background: var(--world);
+}
+.cell.stray::after {
+  content: ''; position: absolute; inset: 14%; border-radius: 30%; opacity: .9;
+  background: repeating-linear-gradient(45deg, #ef4444 0 3px, transparent 3px 7px);
+  animation: splash .6s ease-out;
+}
+.modal-emoji { font-size: 84px; line-height: 1; text-align: center; }
 .cell.splash { animation: splash .8s ease-out; z-index: 1; }
 
 .hero.fall .hero-body { animation: sink .9s ease-in forwards; }

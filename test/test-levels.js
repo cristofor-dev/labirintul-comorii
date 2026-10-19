@@ -24,14 +24,15 @@ Levels.LEVELS.forEach(function (level) {
     var map = Engine.parseGrid(m.grid);
     var width = m.grid[0].length;
     m.grid.forEach(function (row) { if (row.length !== width) fail(level, 'harta ' + (i + 1) + ' are rânduri inegale'); });
-    if (!map.start || !map.treasure) { fail(level, 'harta ' + (i + 1) + ' fără S sau T'); return; }
+    if (!map.start || !(map.treasure || map.drawing)) { fail(level, 'harta ' + (i + 1) + ' fără S sau T/D'); return; }
+    if (map.treasure && map.drawing) fail(level, 'harta ' + (i + 1) + ' are și comoară, și desen');
     var res = Engine.runToEnd(program, map, m.dir);
-    if (!res.won) fail(level, 'harta ' + (i + 1) + ': soluția nu ajunge la comoară (' + res.failed + ' la ' + res.r + ',' + res.c + ')');
+    if (!res.won) fail(level, 'harta ' + (i + 1) + ': soluția nu termină nivelul (' + res.failed + ' la ' + res.r + ',' + res.c + ')');
   });
 });
 
 // Programe greșite trebuie să eșueze corect.
-var lvl1 = Levels.LEVELS[0];
+var lvl1 = Levels.LEVELS.filter(function (l) { return l.id === 1; })[0];
 var map1 = Engine.parseGrid(lvl1.maps[0].grid);
 var bump = Engine.runToEnd(Engine.fromCompact([['up']]), map1, 1);
 if (bump.failed !== 'bump') { failures++; console.log('  ✗ lovirea de zid nu e detectată'); }
@@ -54,6 +55,15 @@ if (bridge.failed !== 'hazard') { failures++; console.log('  ✗ apa nu e detect
 var cross = Engine.runToEnd(Engine.fromCompact([['down'], ['right'], ['right'], ['up']]),
   Engine.parseGrid(['#####', '#SAT#', '#.B.#', '#####']), 1);
 if (!cross.won) { failures++; console.log('  ✗ podul nu se poate traversa'); }
+
+// Desenul: ieșirea din model e greșeală, trecerea din nou pe linie e voie, desenul neterminat nu câștigă.
+var art = Engine.parseGrid(['#####', '#SDD#', '#.D.#', '#####']);
+var stray = Engine.runToEnd(Engine.fromCompact([['down']]), art, 1);
+if (stray.failed !== 'stray') { failures++; console.log('  ✗ ieșirea din desen nu e detectată'); }
+var half = Engine.runToEnd(Engine.fromCompact([['right'], ['right']]), art, 1);
+if (half.failed !== 'ended') { failures++; console.log('  ✗ desenul neterminat nu e detectat'); }
+var redo = Engine.runToEnd(Engine.fromCompact([['right'], ['down'], ['up'], ['right']]), art, 1);
+if (!redo.won) { failures++; console.log('  ✗ trecerea din nou pe desen nu e permisă'); }
 
 if (failures) {
   console.log('\n' + failures + ' probleme.');

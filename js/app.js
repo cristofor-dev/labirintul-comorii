@@ -20,6 +20,10 @@
 
   function missionLabel(w) { return 'Misiunea ' + w.number; }
   function worldById(id) { return WORLDS.filter(function (w) { return w.id === id; })[0]; }
+  // numărul afișat al nivelului = poziția lui pe hartă (id-ul rămâne fix pentru progresul salvat)
+  function levelNo(l) { return LEVELS.indexOf(l) + 1; }
+  // nivelele terminate care mai există în joc
+  function doneCount(p) { return LEVELS.filter(function (l) { return p.progress[l.id]; }).length; }
 
   function $(id) { return document.getElementById(id); }
   function qsa(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
@@ -334,7 +338,7 @@
         b.type = 'button';
         b.className = 'level-btn' + (prog ? ' done' : '') + (unlocked ? '' : ' locked') + (isNext ? ' next' : '');
         b.disabled = !unlocked;
-        b.innerHTML = '<span class="lvl-num">' + (unlocked ? l.id : '🔒') + '</span>' +
+        b.innerHTML = '<span class="lvl-num">' + (unlocked ? levelNo(l) : '🔒') + '</span>' +
           '<span class="lvl-name">' + l.name + '</span>' +
           '<span class="lvl-stars">' + starsHtml(prog ? prog.stars : 0) + '</span>' +
           (isNext ? '<span class="lvl-tag">Joacă</span>' : '');
@@ -472,7 +476,7 @@
     if (Object.keys(Engine.usedTypes(saved)).some(function (t) { return level.blocks.indexOf(t) < 0; })) saved = [];
     game = { level: level, mapIndex: 0, map: null, editor: null, run: null };
     var world = worldById(level.world);
-    $('game-title').textContent = 'Nivelul ' + level.id + ' · ' + level.name;
+    $('game-title').textContent = 'Nivelul ' + levelNo(level) + ' · ' + level.name;
     document.documentElement.style.setProperty('--world', world.color);
     var first = LEVELS.filter(function (l) { return l.world === level.world; })[0] === level;
     setGuide((first ? world.intro + ' ' : '') + level.hint);
@@ -665,7 +669,7 @@
   }
 
   // obstacolele de pe hartă (vezi levels.js)
-  var CELL_CLASS = { P: ' rock', L: ' lava', A: ' water', B: ' bridge' };
+  var CELL_CLASS = { P: ' rock', L: ' lava', A: ' water', B: ' bridge', D: ' ink' };
 
   function renderBoard() {
     var map = game.map;
@@ -675,6 +679,7 @@
     board.style.setProperty('--cell', size + 'px');
     board.style.gridTemplateColumns = 'repeat(' + map.cols + ', var(--cell))';
     board.innerHTML = '';
+    board.classList.toggle('drawing', !!map.drawing);
     for (var r = 0; r < map.rows; r++) {
       for (var c = 0; c < map.cols; c++) {
         var ch = map.cells[r][c];
@@ -712,7 +717,7 @@
 
   function resetHero() {
     clearTimeout(game.fallTimer);
-    qsa('#board .trail, #board .bumped, #board .splash').forEach(function (c) { c.classList.remove('trail', 'bumped', 'splash'); });
+    qsa('#board .trail, #board .bumped, #board .splash, #board .stray').forEach(function (c) { c.classList.remove('trail', 'bumped', 'splash', 'stray'); });
     var hero = $('hero');
     if (hero) hero.classList.remove('bump', 'happy', 'fall', 'fall-lava', 'fall-water');
     placeHero(game.map.start.r, game.map.start.c, game.dir, true);
@@ -790,6 +795,9 @@
     } else if (ev.kind === 'fall') {
       placeHero(st.r, st.c, st.dir);
       fallHero(ev.hazard, st.r, st.c);
+    } else if (ev.kind === 'stray') {
+      placeHero(st.r, st.c, st.dir);
+      strayHero(st.r, st.c);
     }
     if (st.won || st.failed) {
       clearTimeout(run.timer);
@@ -823,6 +831,13 @@
       var cell = document.querySelector('#board [data-rc="' + r + ',' + c + '"]');
       if (cell) cell.classList.add('splash');
     }, speed() * 0.6);
+  }
+
+  // robotul desenator a ieșit din model: mâzgălește hârtia
+  function strayHero(r, c) {
+    playBump();
+    var cell = document.querySelector('#board [data-rc="' + r + ',' + c + '"]');
+    if (cell) cell.classList.add('stray');
   }
 
   function finishRun() {
@@ -864,9 +879,15 @@
       why = heroName(profile) + ' a călcat ' + where + '.';
       setGuide((st.hazard === 'lava' ? 'Au, frige! ' : 'Pleosc! ') + heroName(profile) + ' a călcat ' + where +
         '. Găsește un drum care ocolește obstacolele.', 'bad');
+    } else if (st.failed === 'stray') {
+      why = heroName(profile) + ' a desenat în afara modelului.';
+      setGuide('Hopa! ' + heroName(profile) + ' a ieșit din linia punctată și a stricat desenul. Robotul face exact ce îi spui!', 'bad');
     } else if (st.failed === 'limit') {
       why = 'Programul nu se mai termina, așa că l-am oprit.';
       setGuide('Programul pare că nu se mai termină, așa că l-am oprit. Verifică ce se întâmplă în bucle.', 'bad');
+    } else if (game.map.drawing) {
+      why = 'Programul s-a terminat, dar desenul nu e gata.';
+      setGuide('Programul s-a terminat, dar desenul nu e gata. Mai adaugă comenzi!', 'warn');
     } else {
       why = 'Programul s-a terminat, dar ' + heroName(profile) + ' n-a ajuns la comoară.';
       setGuide('Programul s-a terminat, dar comoara e încă departe. Mai adaugă comenzi!', 'warn');
@@ -907,7 +928,8 @@
     Store.recordWin(profile, level.id, stars, blocks, clone(prog));
     save();
     syncProfile();
-    setGuide('Ai găsit comoara! 🎉', 'good');
+    var drawing = !!game.map.drawing;
+    setGuide(drawing ? 'Desenul e gata! 🎨' : 'Ai găsit comoara! 🎉', 'good');
 
     var idx = LEVELS.indexOf(level);
     var next = LEVELS[idx + 1];
@@ -930,8 +952,8 @@
       body += '<p class="world-done">Ai terminat toate nivelele! Ești un adevărat Erou Isteț! 🏆</p>';
     }
     showModal({
-      art: '<img src="assets/comoara.svg" alt="" class="modal-chest">',
-      title: wasDone ? 'Bravo, din nou!' : 'Comoara e a ta!',
+      art: drawing ? '<div class="modal-chest modal-emoji" aria-hidden="true">🎨</div>' : '<img src="assets/comoara.svg" alt="" class="modal-chest">',
+      title: wasDone ? 'Bravo, din nou!' : (drawing ? 'Desenul e gata!' : 'Comoara e a ta!'),
       body: body,
       actions: actions
     });
@@ -1207,7 +1229,7 @@
     WORLDS.filter(function (w) { return w.available; }).forEach(function (w) {
       var levels = LEVELS.filter(function (l) { return l.world === w.id; });
       var openFor = names.filter(function (n) { return Store.isWorldUnlocked(teacherData[n], w.id); }).length;
-      var allOpen = w.id === 1 || (names.length > 0 && openFor === names.length);
+      var allOpen = Store.alwaysOpen(w.id) || (names.length > 0 && openFor === names.length);
       var card = document.createElement('div');
       card.className = 'mission-card';
       card.style.setProperty('--world', w.color);
@@ -1216,13 +1238,13 @@
         '<div class="mission-info"><span class="eyebrow">' + missionLabel(w) + '</span><h4></h4>' +
         '<p class="mission-status"></p></div><div class="mission-actions"></div>';
       card.querySelector('h4').textContent = w.name;
-      card.querySelector('.mission-status').textContent = levels.length + ' nivele · ' + (w.id === 1
+      card.querySelector('.mission-status').textContent = levels.length + ' nivele · ' + (Store.alwaysOpen(w.id)
         ? 'deschisă pentru toți'
         : (allOpen ? 'deschisă pentru toți' : (openFor ? 'deschisă pentru ' + openFor + ' din ' + names.length + ' copii' : 'închisă')));
       card.classList.toggle('open', allOpen);
       var actions = card.querySelector('.mission-actions');
       actions.appendChild(teacherButton('👁 Previzualizează', 'btn-ghost', function () { startPreview(w.id); }));
-      if (w.id !== 1) {
+      if (!Store.alwaysOpen(w.id)) {
         actions.appendChild(allOpen
           ? teacherButton('🔒 Închide pentru toți', 'btn-ghost', function () { bulkWorld(w.id, false); })
           : teacherButton('🔓 Deblochează pentru toți', 'btn-primary', function () { bulkWorld(w.id, true); }));
@@ -1265,7 +1287,7 @@
   function sortValue(p, n, by) {
     if (by === 'name') return n;
     if (by === 'class') return className(p.classId) || '\uffff';
-    if (by === 'level') { var best = highestLevel(p); return (best ? best.id : 0) * 1000 + Object.keys(p.progress).length; }
+    if (by === 'level') { var best = highestLevel(p); return (best ? levelNo(best) : 0) * 1000 + doneCount(p); }
     if (by === 'stars') return Store.totalStars(p);
     if (by === 'worlds') return p.worlds.length;
     return p.lastSeen || '';
@@ -1563,13 +1585,13 @@
     names.forEach(function (n) {
       var p = all[n];
       var best = highestLevel(p);
-      var done = Object.keys(p.progress).length;
+      var done = doneCount(p);
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td class="col-select admin-only"><input class="pick" type="checkbox"></td>' +
         '<td><div class="kid-cell"><img alt=""><span></span></div></td>' +
         '<td class="col-class cloud-only"></td>' +
-        '<td>' + (best ? 'Nivelul ' + best.id + ' <small>(' + missionLabel(worldById(best.world)) + ', ' + done + ' terminate)</small>' : '—') + '</td>' +
+        '<td>' + (best ? 'Nivelul ' + levelNo(best) + ' <small>(' + missionLabel(worldById(best.world)) + ', ' + done + ' terminate)</small>' : '—') + '</td>' +
         '<td>' + Store.totalStars(p) + '</td>' +
         '<td class="col-worlds"><div class="world-toggles"></div></td>' +
         '<td>' + formatDate(p.lastSeen) + '</td>' +
@@ -1607,7 +1629,7 @@
         b.style.setProperty('--world', w.color);
         b.textContent = (on ? '🔓 ' : '🔒 ') + w.number;
         b.title = (on ? 'Închide' : 'Deschide') + ' ' + missionLabel(w) + ' pentru ' + n;
-        b.disabled = w.id === 1;
+        b.disabled = Store.alwaysOpen(w.id);
         b.addEventListener('click', function () {
           teacherAction(Teacher.setWorld(n, w.id, !on, null),
             missionLabel(w) + ' a fost ' + (on ? 'închisă' : 'deschisă') + ' pentru ' + n + '.');
@@ -1666,7 +1688,7 @@
     sortedNames(all).filter(function (n) { return !Cloud.enabled || inFilter(all[n]); }).forEach(function (n) {
       var p = all[n];
       var best = highestLevel(p);
-      rows.push([n, className(p.classId), best ? best.id : 0, Object.keys(p.progress).length, Store.totalStars(p),
+      rows.push([n, className(p.classId), best ? levelNo(best) : 0, doneCount(p), Store.totalStars(p),
         p.worlds.map(function (id) { var w = worldById(id); return w ? w.number : id; }).join(' '), formatDate(p.lastSeen)]);
     });
     var csv = '﻿' + rows.map(function (r) { return r.map(csvCell).join(';'); }).join('\r\n');

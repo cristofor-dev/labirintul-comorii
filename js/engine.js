@@ -12,20 +12,25 @@
 
   // Obstacole: 'P' bolovan (te lovești de el, ca de zid); 'L' lavă și 'A' apă (cazi în ele).
   // 'B' e un pod: se poate merge pe el.
+  // 'D' = linia desenului-model (nivelele cu robotul desenator, fără comoară): eroul desenează
+  // pe unde trece, iar desenul e gata când a trecut pe toate pătrățelele 'D'.
   var BLOCKED = { '#': 1, P: 1 };
   var HAZARDS = { L: 'lava', A: 'water' };
-  var KEEP = { '#': 1, T: 1, P: 1, L: 1, A: 1, B: 1 };
+  var KEEP = { '#': 1, T: 1, P: 1, L: 1, A: 1, B: 1, D: 1 };
 
   function parseGrid(rows) {
-    var start = null, treasure = null;
+    var start = null, treasure = null, ink = 0;
     var cells = rows.map(function (line, r) {
       return line.split('').map(function (ch, c) {
         if (ch === 'S') start = { r: r, c: c };
         if (ch === 'T') treasure = { r: r, c: c };
+        if (ch === 'D') ink++;
         return KEEP[ch] ? ch : '.';
       });
     });
-    return { cells: cells, rows: cells.length, cols: cells[0].length, start: start, treasure: treasure };
+    // la desen, startul face parte din model: eroul pune creionul pe hârtie acolo
+    if (ink && start) { cells[start.r][start.c] = 'D'; ink++; }
+    return { cells: cells, rows: cells.length, cols: cells[0].length, start: start, treasure: treasure, drawing: ink };
   }
 
   function inside(map, r, c) {
@@ -41,7 +46,9 @@
   }
 
   function newState(map, dir) {
-    return { map: map, r: map.start.r, c: map.start.c, dir: dir || 0, won: false, failed: null, steps: 0 };
+    var st = { map: map, r: map.start.r, c: map.start.c, dir: dir || 0, won: false, failed: null, steps: 0 };
+    if (map.drawing) { st.drawn = {}; st.drawn[st.r + ',' + st.c] = 1; st.drawnCount = 1; }
+    return st;
   }
 
   function lookDir(st, cond) {
@@ -79,6 +86,15 @@
       st.failed = 'hazard';
       st.hazard = hazard;
       return { id: node.id, kind: 'fall', hazard: hazard };
+    }
+    if (st.map.drawing) {
+      if (st.map.cells[nr][nc] !== 'D') {
+        st.failed = 'stray'; // a desenat în afara modelului
+        return { id: node.id, kind: 'stray' };
+      }
+      var key = nr + ',' + nc;
+      if (!st.drawn[key]) { st.drawn[key] = 1; st.drawnCount++; }
+      if (st.drawnCount === st.map.drawing) st.won = true;
     }
     if (st.map.cells[nr][nc] === 'T') st.won = true;
     return { id: node.id, kind: st.won ? 'win' : 'move' };

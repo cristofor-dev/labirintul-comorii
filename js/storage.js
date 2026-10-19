@@ -96,18 +96,27 @@
     };
   }
 
+  // doar nivelele care mai există în joc (stelele de pe nivelele scoase nu se mai numără)
   function totalStars(profile) {
-    return Object.keys(profile.progress).reduce(function (s, k) { return s + (profile.progress[k].stars || 0); }, 0);
+    var known = root.Levels ? root.Levels.LEVELS.map(function (l) { return String(l.id); }) : null;
+    return Object.keys(profile.progress).reduce(function (s, k) {
+      return known && known.indexOf(k) < 0 ? s : s + (profile.progress[k].stars || 0);
+    }, 0);
   }
 
+  // Misiunile mereu deschise (id-uri din levels.js): 4 = Misiunea 1, 1 = Misiunea 2.
+  var ALWAYS_OPEN = [4, 1];
+  function alwaysOpen(worldId) { return ALWAYS_OPEN.indexOf(worldId) >= 0; }
+
   function isWorldUnlocked(profile, worldId) {
-    return profile.worlds.indexOf(worldId) >= 0;
+    return alwaysOpen(worldId) || profile.worlds.indexOf(worldId) >= 0;
   }
 
   function setWorld(profile, worldId, unlocked) {
+    if (alwaysOpen(worldId)) return;
     var has = isWorldUnlocked(profile, worldId);
     if (unlocked && !has) profile.worlds.push(worldId);
-    if (!unlocked && has && worldId !== 1) profile.worlds = profile.worlds.filter(function (w) { return w !== worldId; });
+    if (!unlocked && has) profile.worlds = profile.worlds.filter(function (w) { return w !== worldId; });
     profile.worlds.sort();
   }
 
@@ -166,7 +175,7 @@
   var api = {
     normalizeName: normalizeName, loadAll: loadAll, getProfile: getProfile, getOrCreate: getOrCreate,
     saveProfile: saveProfile, deleteProfile: deleteProfile, getCurrent: getCurrent, setCurrent: setCurrent,
-    recordWin: recordWin, totalStars: totalStars, isWorldUnlocked: isWorldUnlocked, setWorld: setWorld,
+    recordWin: recordWin, totalStars: totalStars, isWorldUnlocked: isWorldUnlocked, alwaysOpen: alwaysOpen, setWorld: setWorld,
     hasPin: hasPin, setPin: setPin, checkPin: checkPin, exportJSON: exportJSON, importJSON: importJSON,
     mergeProfile: mergeProfile
   };

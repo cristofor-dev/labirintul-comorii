@@ -1,8 +1,11 @@
 // Nivelele jocului, grupate pe misiuni. Hartă: '#' zid, '.' drum, 'S' start, 'T' comoară,
 // 'P' bolovan (te lovești de el), 'L' lavă și 'A' apă (cazi în ele), 'B' pod.
+// 'D' = linia unui desen-model (Misiunea 1, robotul desenator): în loc de comoară, eroul trebuie să
+// treacă pe toate pătrățelele desenului fără să iasă din el.
 // dir = direcția de start (0 sus, 1 dreapta, 2 jos, 3 stânga).
 // Misiuni: în cod se numesc „world” (așa sunt salvate și online); number = numărul misiunii din
-// parcursul Academiei (prima misiune din joc e Misiunea #2, Navigatorul).
+// parcursul Academiei. Ordinea din WORLDS / LEVELS e ordinea de pe hartă; numărul afișat al nivelului
+// e poziția lui în LEVELS (id-urile rămân fixe, fiindcă progresul copiilor e salvat după id).
 // available: false = misiunea e încă în lucru și nu apare pe hartă.
   // optimal = nr. de blocuri pentru 3 stele; maxBlocks = limita (null = fără limită).
 // solution = soluția de referință (format compact, vezi Engine.fromCompact), verificată de test/test-levels.js.
@@ -10,6 +13,8 @@
   'use strict';
 
   var WORLDS = [
+    { id: 4, number: 1, name: 'Inginerul de instrucțiuni', color: '#ec4899', icon: '🤖', available: true,
+      intro: 'Robotul desenator face exact ce îi spui, nu ce ai vrut să spui. Dă-i instrucțiuni clare, pas cu pas.' },
     { id: 1, number: 2, name: 'Navigatorul', color: '#6366f1', icon: '🧭', available: true,
       intro: 'Un program este o listă de comenzi pe care personajul le face, una după alta.' },
     { id: 2, number: 3, name: 'Arhitectul', color: '#f59e0b', icon: '🏗️', available: true,
@@ -22,6 +27,70 @@
   var MOVE_REL = ['forward', 'turnLeft', 'turnRight'];
 
   var LEVELS = [
+    // ---------------- Misiunea 1 (Inginerul de instrucțiuni): robotul desenator ----------------
+    // Ca „Robotul desenator” și „Desenul dictat” de la prima întâlnire: eroul desenează pe unde trece.
+    { id: 26, world: 4, name: 'Linia',
+      hint: 'Robotul are creionul pe hârtie. Atinge săgețile ca să le pui în program, apoi apasă „Pornește”. Desenează linia punctată, fără să ieși din ea.',
+      blocks: MOVE_ABS, optimal: 4, maxBlocks: null,
+      maps: [{ dir: 1, grid: [
+        '#######',
+        '#.....#',
+        '#SDDDD#',
+        '#.....#',
+        '#######'] }],
+      solution: [['right'], ['right'], ['right'], ['right']] },
+
+    { id: 27, world: 4, name: 'Litera L',
+      hint: 'Robotul desenează o literă. Dacă iese din linia punctată, desenul e stricat!',
+      blocks: MOVE_ABS, optimal: 6, maxBlocks: null,
+      maps: [{ dir: 2, grid: [
+        '#######',
+        '#S....#',
+        '#D....#',
+        '#D....#',
+        '#DDDD.#',
+        '#######'] }],
+      solution: [['down'], ['down'], ['down'], ['right'], ['right'], ['right']] },
+
+    { id: 28, world: 4, name: 'Pătratul',
+      hint: '„Desenează un pătrat” e prea puțin pentru un robot. Spune-i exact pe unde să meargă creionul.',
+      blocks: MOVE_ABS, optimal: 7, maxBlocks: null,
+      maps: [{ dir: 1, grid: [
+        '#######',
+        '#.....#',
+        '#.SDD.#',
+        '#.D.D.#',
+        '#.DDD.#',
+        '#.....#',
+        '#######'] }],
+      solution: [['down'], ['down'], ['right'], ['right'], ['up'], ['up'], ['left']] },
+
+    { id: 29, world: 4, name: 'Casa',
+      hint: 'Casa din desenul secret al Bufniței! 🏠 Robotul nu știe ce e un acoperiș, știe doar săgețile.',
+      blocks: MOVE_ABS, optimal: 8, maxBlocks: null,
+      maps: [{ dir: 2, grid: [
+        '#######',
+        '#..S..#',
+        '#.DDD.#',
+        '#.D.D.#',
+        '#.DDD.#',
+        '#######'] }],
+      solution: [['down'], ['left'], ['down'], ['down'], ['right'], ['right'], ['up'], ['up']] },
+
+    { id: 30, world: 4, name: 'Bradul',
+      hint: 'Provocare! 🎄 Un brad cu ramuri. Robotul poate trece și pe unde a desenat deja, dacă rămâne pe linie.',
+      blocks: MOVE_ABS, optimal: 15, maxBlocks: null,
+      maps: [{ dir: 2, grid: [
+        '#########',
+        '#...S...#',
+        '#..DDD..#',
+        '#...D...#',
+        '#.DDDDD.#',
+        '#...D...#',
+        '#########'] }],
+      solution: [['down'], ['left'], ['right'], ['right'], ['left'], ['down'], ['down'], ['down'], ['up'],
+        ['left'], ['left'], ['right'], ['right'], ['right'], ['right']] },
+
     // ---------------- Misiunea 2 (Navigatorul): secvențe ----------------
     { id: 1, world: 1, name: 'Primii pași',
       hint: 'Atinge săgețile ca să le pui în program, apoi apasă „Pornește”.',
@@ -32,17 +101,6 @@
         '#######'] }],
       solution: [['right'], ['right'], ['right'], ['right']] },
 
-    { id: 2, world: 1, name: 'Colțul',
-      hint: 'Drumul face colțuri. Numără pătrățelele și pune săgețile în ordinea bună.',
-      blocks: MOVE_ABS, optimal: 6, maxBlocks: null,
-      maps: [{ dir: 1, grid: [
-        '######',
-        '#S..##',
-        '###.##',
-        '###..#',
-        '####T#',
-        '######'] }],
-      solution: [['right'], ['right'], ['down'], ['down'], ['right'], ['down']] },
 
     { id: 3, world: 1, name: 'Drumul cotit',
       hint: 'Drumul are două cotituri. Numără pătrățelele dintre ele și pune săgețile în ordine.',
@@ -55,18 +113,6 @@
         '#######'] }],
       solution: [['right'], ['right'], ['down'], ['down'], ['right'], ['right']] },
 
-    { id: 4, world: 1, name: 'Șarpele',
-      hint: 'Un drum lung, cu multe cotituri. Ai răbdare și numără bine pătrățelele de pe fiecare bucată de drum.',
-      blocks: MOVE_ABS, optimal: 13, maxBlocks: null,
-      maps: [{ dir: 1, grid: [
-        '######',
-        '#S...#',
-        '####.#',
-        '#....#',
-        '#.####',
-        '#...T#',
-        '######'] }],
-      solution: [['right'], ['right'], ['right'], ['down'], ['down'], ['left'], ['left'], ['left'], ['down'], ['down'], ['right'], ['right'], ['right']] },
 
     { id: 5, world: 1, name: 'Fundături',
       hint: 'Atenție, unele drumuri nu duc nicăieri! Găsește întâi drumul cel mai scurt cu degetul pe ecran.',
@@ -80,17 +126,6 @@
         '#######'] }],
       solution: [['right'], ['right'], ['down'], ['right'], ['right'], ['down'], ['down']] },
 
-    // Nivelele 6–10: câmp deschis cu obstacole de ocolit.
-    { id: 6, world: 1, name: 'Lava fierbinte',
-      hint: 'Atenție, lavă! 🔥 Dacă eroul calcă pe ea, programul are un bug. Ocolește lava pe lângă ea.',
-      blocks: MOVE_ABS, optimal: 6, maxBlocks: null,
-      maps: [{ dir: 1, grid: [
-        '#######',
-        '#.....#',
-        '#S.L.T#',
-        '#.....#',
-        '#######'] }],
-      solution: [['up'], ['right'], ['right'], ['right'], ['right'], ['down']] },
 
     { id: 7, world: 1, name: 'Podul peste lac',
       hint: 'Lacul taie câmpul în două și eroul nu știe să înoate! 🌊 Găsește podul de lemn și treci pe el.',
@@ -104,34 +139,10 @@
         '########'] }],
       solution: [['right'], ['right'], ['down'], ['down'], ['right'], ['right'], ['right'], ['down']] },
 
-    { id: 8, world: 1, name: 'Bolovani și lavă',
-      hint: 'Bolovanii nu se mișcă din loc, iar lava arde! Caută un drum printre ele și numără bine pătrățelele.',
-      blocks: MOVE_ABS, optimal: 9, maxBlocks: null,
-      maps: [{ dir: 1, grid: [
-        '########',
-        '#S..L..#',
-        '#.P.L.P#',
-        '#...P..#',
-        '#LL...L#',
-        '#..P..T#',
-        '########'] }],
-      solution: [['right'], ['right'], ['down'], ['down'], ['down'], ['right'], ['right'], ['down'], ['right']] },
 
-    { id: 9, world: 1, name: 'Râul de foc',
-      hint: 'Un râu de lavă taie drumul! Singura trecere e podul din mijloc. Ocolește bolovanii ca să ajungi la el.',
-      blocks: MOVE_ABS, optimal: 10, maxBlocks: null,
-      maps: [{ dir: 1, grid: [
-        '#########',
-        '#S..P...#',
-        '#.P...P.#',
-        '#LLLBLLL#',
-        '#.P...P.#',
-        '#...P..T#',
-        '#########'] }],
-      solution: [['right'], ['right'], ['down'], ['right'], ['down'], ['down'], ['right'], ['down'], ['right'], ['right']] },
 
     { id: 10, world: 1, name: 'Vulcanul',
-      hint: 'Marea provocare: vulcanul! 🌋 Ziduri, lavă, bolovani și apă. Urmărește întâi drumul cu degetul pe ecran, apoi scrie programul.',
+      hint: 'Marea provocare: vulcanul! 🌋 Lava arde, în apă cazi, iar bolovanii nu se mișcă din loc. Urmărește întâi drumul cu degetul pe ecran, apoi scrie programul.',
       blocks: MOVE_ABS, optimal: 13, maxBlocks: null,
       maps: [{ dir: 2, grid: [
         '#########',
@@ -182,44 +193,9 @@
         '#########'] }],
       solution: [['repeat', 3, [['up'], ['right']]], ['repeat', 3, [['right'], ['down']]]] },
 
-    // 14–20: nivele în plus pentru cei rapizi, tot mai grele; de la 17 încolo, bucle una în alta.
-    { id: 14, world: 2, name: 'Insulele de lavă',
-      hint: 'Lava e peste tot, doar insulele sunt sigure! 🔥 Ai la dispoziție bucla „Repetă”.',
-      blocks: MOVE_ABS.concat(['repeat']), optimal: 4, maxBlocks: 5,
-      maps: [{ dir: 1, grid: [
-        '#########',
-        '#S..LLLL#',
-        '#LL...LL#',
-        '#LLLL...#',
-        '#LLLLLLT#',
-        '#########'] }],
-      solution: [['repeat', 3, [['right'], ['right'], ['down']]]] },
+    // 17 și 20: bucle una în alta.
 
-    { id: 15, world: 2, name: 'Colțul cetății',
-      hint: 'Drumul ocolește cetatea. Poți pune mai multe bucle „Repetă” în același program.',
-      blocks: MOVE_ABS.concat(['repeat']), optimal: 4, maxBlocks: 5,
-      maps: [{ dir: 1, grid: [
-        '########',
-        '#S.....#',
-        '######.#',
-        '######.#',
-        '######.#',
-        '######T#',
-        '########'] }],
-      solution: [['repeat', 5, [['right']]], ['repeat', 4, [['down']]]] },
 
-    { id: 16, world: 2, name: 'Ocolul lacului',
-      hint: 'Eroul nu știe să înoate! 🌊 Du-l la comoară pe lângă lac. Ai la dispoziție bucle „Repetă”.',
-      blocks: MOVE_ABS.concat(['repeat']), optimal: 6, maxBlocks: 7,
-      maps: [{ dir: 1, grid: [
-        '#######',
-        '#S....#',
-        '#AAAA.#',
-        '#AAAA.#',
-        '#AAAA.#',
-        '#T....#',
-        '#######'] }],
-      solution: [['repeat', 4, [['right']]], ['repeat', 4, [['down']]], ['repeat', 4, [['left']]]] },
 
     { id: 17, world: 2, name: 'Scara lată',
       hint: 'O scară cu trepte late. Știai că un „Repetă” poate sta în interiorul altui „Repetă”?',
@@ -233,30 +209,7 @@
         '############'] }],
       solution: [['repeat', 3, [['repeat', 3, [['right']]], ['down']]]] },
 
-    { id: 18, world: 2, name: 'Scara uriașului',
-      hint: 'O scară cu trepte uriașe. Ai la dispoziție bucle „Repetă”, chiar și una în alta.',
-      blocks: MOVE_ABS.concat(['repeat']), optimal: 5, maxBlocks: 6,
-      maps: [{ dir: 1, grid: [
-        '#########',
-        '#S...####',
-        '####.####',
-        '####.####',
-        '####....#',
-        '#######.#',
-        '#######.#',
-        '#######T#',
-        '#########'] }],
-      solution: [['repeat', 2, [['repeat', 3, [['right']]], ['repeat', 3, [['down']]]]]] },
 
-    { id: 19, world: 2, name: 'Zidul cu creneluri',
-      hint: 'Zidul cetății are creneluri. Ai la dispoziție bucle „Repetă”, chiar și una în alta.',
-      blocks: MOVE_ABS.concat(['repeat']), optimal: 7, maxBlocks: 8,
-      maps: [{ dir: 1, grid: [
-        '###############',
-        '#....##....####',
-        '#S##....##...T#',
-        '###############'] }],
-      solution: [['repeat', 2, [['up'], ['repeat', 3, [['right']]], ['down'], ['repeat', 3, [['right']]]]]] },
 
     { id: 20, world: 2, name: 'Munții gemeni',
       hint: 'Marea provocare a arhitectului: doi munți gemeni! ⛰️ Ai la dispoziție bucle „Repetă”, chiar și una în alta.',
