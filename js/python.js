@@ -8,6 +8,7 @@
     forward: 'Înainte', turnLeft: 'Rotește stânga', turnRight: 'Rotește dreapta',
     repeatUntil: 'Repetă până la comoară'
   };
+  var VAGUE = { vSquare: 'un pătrat', vRoof: 'un acoperiș', vDoor: 'o ușă', vHouse: 'o casă cu ușă și soare', vOwl: 'o bufniță' };
   var COND_LABELS = { front: 'în față', left: 'la stânga', right: 'la dreapta' };
   // celula verificată de fiecare condiție, relativ la direcția (dx, dy)
   var COND_CELL = { front: 'harta[y + dy][x + dx]', left: 'harta[y - dx][x + dy]', right: 'harta[y + dx][x - dy]' };
@@ -69,6 +70,10 @@
         add(out, depth, [K('while'), T(' (x, y) != comoara:')], id);
         body(node.body, depth + 1, loopDepth, out);
         break;
+      case 'vSquare': case 'vRoof': case 'vDoor': case 'vHouse': case 'vOwl':
+        add(out, depth, [C(VAGUE[node.type] + ': robotul nu știe ce înseamnă!')], id);
+        add(out, depth, [T('deseneaza('), ['str', '"' + VAGUE[node.type] + '"'], T(')')], id);
+        break;
       case 'if':
       case 'ifElse':
         add(out, depth, [C('Dacă e drum ' + COND_LABELS[node.cond])], id);
@@ -93,6 +98,10 @@
     if (ctx && ctx.map) {
       var s = ctx.map.start, t = ctx.map.treasure;
       add(out, 0, [C('Start: coloana ' + s.c + ', rândul ' + s.r)]);
+      if (ctx.grid && /[IO<>^v]/.test(ctx.grid.join(''))) {
+        add(out, 0, [C('Atenție: gheața, portalurile și săgețile magice mută eroul singure;')]);
+        add(out, 0, [C('codul de mai jos arată doar pașii pe care îi faci tu.')]);
+      }
       add(out, 0, [T('x, y = '), N(s.c), T(', '), N(s.r)]);
       if (relative) {
         var d = DIRS[ctx.dir || 0];

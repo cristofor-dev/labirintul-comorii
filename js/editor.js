@@ -14,7 +14,13 @@
     repeat:      { icon: '🔁', label: 'Repetă', cat: 'loop' },
     repeatUntil: { icon: '💎', label: 'Repetă până la comoară', cat: 'loop' },
     if:          { icon: '❓', label: 'Dacă e drum', cat: 'cond' },
-    ifElse:      { icon: '❓', label: 'Dacă e drum … altfel', cat: 'cond' }
+    ifElse:      { icon: '❓', label: 'Dacă e drum … altfel', cat: 'cond' },
+    // instrucțiunile vagi ale robotului desenator (Misiunea 1)
+    vSquare:     { icon: '◻️', label: 'Desenează un pătrat', cat: 'vague' },
+    vRoof:       { icon: '🔺', label: 'Fă un acoperiș', cat: 'vague' },
+    vDoor:       { icon: '🚪', label: 'Pune o ușă', cat: 'vague' },
+    vHouse:      { icon: '🏠', label: 'Desenează o casă cu ușă și soare', cat: 'vague' },
+    vOwl:        { icon: '🦉', label: 'Desenează o bufniță', cat: 'vague' }
   };
   var CONDS = { front: 'în față', left: 'la stânga', right: 'la dreapta' };
   var MIN_N = 1, MAX_N = 12;
@@ -347,6 +353,28 @@
         void el.offsetWidth;
         el.classList.add('err');
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      },
+      // la rulare, numărul buclei arată câte repetări mai sunt (cu cea de acum); id null = înapoi la numerele scrise
+      loopLeft: function (id, left) {
+        var reset = function (box) {
+          var heads = box.querySelectorAll('.blk.t-repeat[data-id]');
+          for (var i = 0; i < heads.length; i++) {
+            var n = findNode(heads[i].dataset.id, program);
+            var b = heads[i].querySelector('.blk-head .num b');
+            if (n && b) b.textContent = n.n;
+            heads[i].classList.remove('counting');
+          }
+        };
+        if (!id) { reset(ws); return; }
+        var el = ws.querySelector('[data-id="' + id + '"]');
+        if (!el) return;
+        reset(el.querySelector('.slot') || el); // buclele dinăuntru o iau de la capăt
+        el.querySelector('.blk-head .num b').textContent = left;
+        el.classList.add('counting');
+        var num = el.querySelector('.blk-head .num');
+        num.classList.remove('tick');
+        void num.offsetWidth;
+        num.classList.add('tick');
       },
       flash: function (id, cls) {
         var el = ws.querySelector('[data-id="' + id + '"]');

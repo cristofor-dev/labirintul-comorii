@@ -11,7 +11,7 @@ var RUNNER = [
   'import sys',
   'grid, code = sys.argv[1].split("\\n"), sys.stdin.read()',
   'T = [(xx, yy) for yy, row in enumerate(grid) for xx, ch in enumerate(row) if ch == "T"]',
-  'ink = set((xx, yy) for yy, row in enumerate(grid) for xx, ch in enumerate(row) if ch in "DS")',
+  'ink = set((xx, yy) for yy, row in enumerate(grid) for xx, ch in enumerate(row) if ch in "DESQ")',
   'drawn = set()',
   'g = {}',
   'def check(frame, event, arg):',
@@ -33,6 +33,8 @@ var RUNNER = [
 var failures = 0;
 Levels.LEVELS.forEach(function (level) {
   level.maps.forEach(function (m, i) {
+    // gheața, portalurile și săgețile magice mută eroul singure; codul Python arată doar pașii programului
+    if (/[IO<>^v]/.test(m.grid.join(''))) return;
     var ctx = { map: Engine.parseGrid(m.grid), grid: m.grid, dir: m.dir };
     var code = Python.toText(Engine.fromCompact(level.solution), ctx);
     var out;

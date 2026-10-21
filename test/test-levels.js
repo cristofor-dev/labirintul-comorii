@@ -22,12 +22,16 @@ Levels.LEVELS.forEach(function (level) {
 
   level.maps.forEach(function (m, i) {
     var map = Engine.parseGrid(m.grid);
+    map.dictation = !!level.dictation;
+    if (level.dictation && !map.drawing) fail(level, 'desenul dictat fără model');
+    if (level.round1 && !Engine.VAGUE[level.round1]) fail(level, 'runda 1 fără instrucțiune vagă');
     var width = m.grid[0].length;
     m.grid.forEach(function (row) { if (row.length !== width) fail(level, 'harta ' + (i + 1) + ' are rânduri inegale'); });
     if (!map.start || !(map.treasure || map.drawing)) { fail(level, 'harta ' + (i + 1) + ' fără S sau T/D'); return; }
     if (map.treasure && map.drawing) fail(level, 'harta ' + (i + 1) + ' are și comoară, și desen');
     var res = Engine.runToEnd(program, map, m.dir);
     if (!res.won) fail(level, 'harta ' + (i + 1) + ': soluția nu termină nivelul (' + res.failed + ' la ' + res.r + ',' + res.c + ')');
+    else if (res.extra && !level.maps[1]) fail(level, 'soluția are pași în plus după ce câștigă');
   });
 });
 
@@ -64,6 +68,49 @@ var half = Engine.runToEnd(Engine.fromCompact([['right'], ['right']]), art, 1);
 if (half.failed !== 'ended') { failures++; console.log('  ✗ desenul neterminat nu e detectat'); }
 var redo = Engine.runToEnd(Engine.fromCompact([['right'], ['down'], ['up'], ['right']]), art, 1);
 if (!redo.won) { failures++; console.log('  ✗ trecerea din nou pe desen nu e permisă'); }
+
+// Repetările sau blocurile în plus după comoară sunt observate (nu mai iei 3 stele pe ele).
+var line = Engine.parseGrid(['#####', '#S.T#', '#####']);
+var exact = Engine.runToEnd(Engine.fromCompact([['repeat', 2, [['right']]]]), line, 1);
+if (!exact.won || exact.extra) { failures++; console.log('  ✗ bucla exactă e marcată ca având pași în plus'); }
+var tooMany = Engine.runToEnd(Engine.fromCompact([['repeat', 9, [['right']]]]), line, 1);
+if (!tooMany.won || !tooMany.extra) { failures++; console.log('  ✗ repetările în plus nu sunt observate'); }
+var tail = Engine.runToEnd(Engine.fromCompact([['right'], ['right'], ['up']]), line, 1);
+if (!tail.won || !tail.extra) { failures++; console.log('  ✗ blocul în plus de după comoară nu e observat'); }
+var nested = Engine.runToEnd(Engine.fromCompact([['repeat', 2, [['repeat', 1, [['right']]]]]]), line, 1);
+if (!nested.won || nested.extra) { failures++; console.log('  ✗ buclele una în alta exacte sunt marcate greșit'); }
+
+// Instrucțiunile vagi strică desenul; la desenul dictat contează doar desenul de la final.
+var vague = Engine.runToEnd(Engine.fromCompact([['right'], ['vSquare']]), art, 1);
+if (vague.failed !== 'vague' || vague.vague !== 'vSquare') { failures++; console.log('  ✗ instrucțiunea vagă nu e detectată'); }
+var secret = Engine.parseGrid(['######', '#SDD.#', '#....#', '######']);
+secret.dictation = true;
+var good = Engine.runToEnd(Engine.fromCompact([['right'], ['right']]), secret, 1);
+if (!good.won) { failures++; console.log('  ✗ desenul dictat corect nu câștigă'); }
+var off = Engine.runToEnd(Engine.fromCompact([['down'], ['up'], ['right'], ['right']]), secret, 1);
+if (off.won || off.extraCells !== 1 || off.failed !== 'ended') { failures++; console.log('  ✗ pătrățelul în plus din desenul dictat nu e găsit'); }
+var shortDraw = Engine.runToEnd(Engine.fromCompact([['right']]), secret, 1);
+if (shortDraw.won || shortDraw.missing !== 1) { failures++; console.log('  ✗ pătrățelul lipsă din desenul dictat nu e găsit'); }
+
+// Surprizele: poartă, monede, portal, gheață, pod șubred, săgeți magice, comoara falsă, culori.
+function check(name, grid, prog, want) {
+  var res = Engine.runToEnd(Engine.fromCompact(prog), Engine.parseGrid(grid), 1);
+  var ok = Object.keys(want).every(function (k) { return res[k] === want[k]; });
+  if (!ok) { failures++; console.log('  ✗ ' + name + ': ' + JSON.stringify(res)); }
+}
+check('poarta fără cheie', ['#####', '#SUT#', '#####'], [['right']], { failed: 'bump', bumped: 'U' });
+check('poarta cu cheie', ['######', '#SKUT#', '######'], [['repeat', 3, [['right']]]], { won: true });
+check('cheia se consumă', ['#######', '#SKUUT#', '#######'], [['repeat', 4, [['right']]]], { failed: 'bump' });
+check('comoara încuiată', ['#######', '#.STM.#', '#######'], [['right']], { won: false, coinsLeft: 1 });
+check('monedele descuie comoara', ['#######', '#.MST.#', '#######'], [['left'], ['right'], ['right']], { won: true });
+check('portalul', ['########', '#S.O#OT#', '########'], [['right'], ['right'], ['right']], { won: true });
+check('gheața', ['#######', '#SIIIT#', '#######'], [['right']], { won: true });
+check('gheața se oprește la zid', ['#######', '#SIII.#', '#.####T'.slice(0, 7), '#######'], [['right']], { r: 1, c: 5 });
+check('podul șubred', ['######', '#SC.T#', '######'], [['right'], ['right'], ['left'], ['left']], { failed: 'hazard', hazard: 'hole' });
+check('săgeata magică', ['######', '#S>.T#', '######'], [['right']], { r: 1, c: 3 });
+check('comoara falsă', ['#####', '#SFT#', '#####'], [['right']], { failed: 'hazard', hazard: 'mimic' });
+check('culoarea greșită', ['######', '#SDE.#', '######'], [['right'], ['right']], { failed: 'stray' });
+check('găleata de vopsea', ['######', '#SQE.#', '######'], [['right'], ['right']], { won: true });
 
 if (failures) {
   console.log('\n' + failures + ' probleme.');

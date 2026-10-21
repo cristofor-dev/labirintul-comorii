@@ -313,7 +313,33 @@
   function worldOpen(w) { return !!w && w.available && (!!preview || Store.isWorldUnlocked(profile, w.id)); }
   function worldLevels(w) { return LEVELS.filter(function (l) { return l.world === w.id; }); }
 
+  // Misiunile deschise de profesor între timp: le aducem de pe server cât timp copilul e pe hartă,
+  // ca să nu trebuiască să iasă și să intre din nou.
+  var WORLDS_REFRESH_MS = 20000;
+  var refreshingWorlds = false;
+  function refreshWorlds() {
+    if (!Cloud.enabled || !profile || preview || refreshingWorlds) return;
+    var p = profile;
+    refreshingWorlds = true;
+    Cloud.pull(p.name).then(function (remote) {
+      refreshingWorlds = false;
+      if (p !== profile || !remote || !remote.worlds || !remote.worlds.length) return;
+      if (remote.worlds.slice().sort().join() === p.worlds.slice().sort().join()) return;
+      p.worlds = remote.worlds.slice();
+      save();
+      if (!$('screen-map').hidden) renderMap();
+    }, function () { refreshingWorlds = false; });
+  }
+  setInterval(function () {
+    if (!document.hidden && !$('screen-map').hidden) refreshWorlds();
+  }, WORLDS_REFRESH_MS);
+
   function showMap() {
+    renderMap();
+    refreshWorlds();
+  }
+
+  function renderMap() {
     stopRun();
     fillKid();
     $('map-stars').textContent = Store.totalStars(profile);
@@ -420,7 +446,7 @@
       } else {
         el = document.createElement('div');
         el.className = 'stop fog';
-        el.innerHTML = '<span class="stop-icon">🔒</span><span class="stop-label"><small>Misiunea ' + x.number + '</small><b>În ceață…</b></span>';
+        el.innerHTML = '<span class="stop-icon">🔒</span><span class="stop-label"><small>Misiunea ' + x.number + '</small><b>În curând…</b></span>';
       }
       el.style.left = p.x + '%';
       el.style.top = p.y + 'px';
@@ -464,6 +490,7 @@
       b.disabled = !unlocked;
       b.innerHTML = '<span class="lvl-num">' + (unlocked ? levelNo(l) : '🔒') + '</span>' +
         '<span class="lvl-name">' + l.name + '</span>' +
+        (l.icon ? '<span class="lvl-icon" title="Surpriza nivelului">' + l.icon + '</span>' : '') +
         '<span class="lvl-stars">' + starsHtml(prog ? prog.stars : 0) + '</span>' +
         (isNext ? '<span class="lvl-tag">Joacă</span>' : '');
       b.addEventListener('click', function () { openLevel(l); });
@@ -596,16 +623,29 @@
     var saved = profile.drafts[level.id] || (profile.progress[level.id] || {}).program || [];
     // programele salvate cu blocuri care nu mai sunt în nivel (de ex. rotirile scoase) nu se mai încarcă
     if (Object.keys(Engine.usedTypes(saved)).some(function (t) { return level.blocks.indexOf(t) < 0; })) saved = [];
-    game = { level: level, mapIndex: 0, map: null, editor: null, run: null };
+    // desenul dictat cu runda 1: întâi o singură instrucțiune vagă (până când nivelul e terminat o dată)
+    var round = level.round1 && !profile.progress[level.id] && !preview ? 1 : 2;
+    game = { level: level, mapIndex: 0, map: null, editor: null, run: null, round: round };
     mapWorld = level.world; // „← Hartă” din joc te duce înapoi la misiunea nivelului
     var world = worldById(level.world);
     $('game-title').textContent = 'Nivelul ' + levelNo(level) + ' · ' + level.name;
     document.documentElement.style.setProperty('--world', world.color);
     var first = LEVELS.filter(function (l) { return l.world === level.world; })[0] === level;
-    setGuide((first ? world.intro + ' ' : '') + level.hint);
+    setGuide((first ? world.intro + ' ' : '') + levelHint());
     $('btn-solution').hidden = !preview;
 
     setPythonVisible(false); // la fiecare nivel codul Python pornește ascuns
+    makeEditor(round === 1 ? [level.round1] : level.blocks, round === 1 ? 1 : level.maxBlocks, round === 1 ? [] : saved);
+    show('screen-game'); // întâi afișăm ecranul, ca tabla să-și poată măsura lățimea
+    loadMap(0);
+  }
+
+  function levelHint() {
+    return game.round === 1 || !game.level.hint2 ? game.level.hint : game.level.hint2;
+  }
+
+  function makeEditor(blocks, maxBlocks, program) {
+    var level = game.level;
     // elemente noi la fiecare nivel, ca să nu se adune ascultătorii editorului anterior
     ['workspace', 'palette'].forEach(function (id) {
       var old = $(id);
@@ -614,12 +654,14 @@
     game.editor = Editor.create({
       workspace: $('workspace'),
       palette: $('palette'),
-      blocks: level.blocks,
-      maxBlocks: level.maxBlocks,
-      program: clone(saved),
+      blocks: blocks,
+      maxBlocks: maxBlocks,
+      program: clone(program),
       onChange: function (prog) {
-        profile.drafts[level.id] = clone(prog);
-        save();
+        if (game.round !== 1) {
+          profile.drafts[level.id] = clone(prog);
+          save();
+        }
         if (!game.run) resetHero();
       },
       onRender: function (n, max, prog) {
@@ -639,8 +681,6 @@
         c.classList.add('shake');
       }
     });
-    show('screen-game'); // întâi afișăm ecranul, ca tabla să-și poată măsura lățimea
-    loadMap(0);
   }
 
   // ---------- Codul Python ----------
@@ -778,6 +818,7 @@
     game.mapIndex = i;
     var m = game.level.maps[i];
     game.map = Engine.parseGrid(m.grid);
+    game.map.dictation = !!game.level.dictation;
     game.dir = m.dir;
     renderMapTabs();
     renderBoard();
@@ -792,7 +833,17 @@
   }
 
   // obstacolele de pe hartă (vezi levels.js)
-  var CELL_CLASS = { P: ' rock', L: ' lava', A: ' water', B: ' bridge', D: ' ink' };
+  var CELL_CLASS = { P: ' rock', L: ' lava', A: ' water', B: ' bridge', D: ' ink', E: ' ink ink2', Q: ' pot',
+    K: ' key', U: ' gate', M: ' coin', O: ' portal', I: ' ice', C: ' crumbly', F: ' treasure fake',
+    '>': ' push', '<': ' push', '^': ' push', v: ' push' };
+  // ce se vede pe pătrățelele cu surprize
+  var TILE_HTML = {
+    K: '<span class="tile">🔑</span>', M: '<span class="tile">🪙</span>', O: '<span class="tile">🌀</span>',
+    Q: '<span class="tile">🪣</span>', U: '<span class="tile">🔒</span>',
+    F: '<img src="assets/comoara.svg" alt="Comoara?"><span class="eyes">👀</span>',
+    '>': '<span class="tile arrow" style="--rot:0deg">➜</span>', v: '<span class="tile arrow" style="--rot:90deg">➜</span>',
+    '<': '<span class="tile arrow" style="--rot:180deg">➜</span>', '^': '<span class="tile arrow" style="--rot:-90deg">➜</span>'
+  };
 
   function renderBoard() {
     var map = game.map;
@@ -803,17 +854,23 @@
     board.style.gridTemplateColumns = 'repeat(' + map.cols + ', var(--cell))';
     board.innerHTML = '';
     board.classList.toggle('drawing', !!map.drawing);
+    var colors = game.level.colors || [];
+    board.style.setProperty('--ink1', colors[0] || 'var(--world)');
+    board.style.setProperty('--ink2', colors[1] || '#3b82f6');
     for (var r = 0; r < map.rows; r++) {
       for (var c = 0; c < map.cols; c++) {
         var ch = map.cells[r][c];
         var cell = document.createElement('div');
-        cell.className = 'cell ' + (ch === '#' ? 'wall w' + ((r * 7 + c * 3) % 3) : 'path' + (CELL_CLASS[ch] || ''));
+        // la desenul dictat modelul nu se vede pe foaie, doar în plic
+        var cls = (ch === 'D' || ch === 'E') && map.dictation ? '' : CELL_CLASS[ch] || '';
+        cell.className = 'cell ' + (ch === '#' ? 'wall w' + ((r * 7 + c * 3) % 3) : 'path' + cls);
         cell.dataset.rc = r + ',' + c;
         if (ch === 'L' || ch === 'A') cell.style.setProperty('--d', -((r * 5 + c * 3) % 7) * 0.3 + 's');
         if (ch === 'T') {
           cell.classList.add('treasure');
           cell.innerHTML = '<img src="assets/comoara.svg" alt="Comoara">';
         }
+        if (TILE_HTML[ch]) cell.innerHTML = TILE_HTML[ch];
         if (r === map.start.r && c === map.start.c) cell.classList.add('start');
         board.appendChild(cell);
       }
@@ -824,6 +881,7 @@
     hero.innerHTML = '<div class="hero-arrow"></div><div class="hero-body"><img alt=""></div>';
     hero.querySelector('img').src = avatarSrc(profile);
     board.appendChild(hero);
+    renderEnvelope();
     resetHero();
   }
 
@@ -839,17 +897,25 @@
   }
 
   function resetHero() {
+    // cheile, monedele, porțile și podurile își revin la începutul fiecărei rulări
+    if (game.tilesDirty) { game.tilesDirty = false; renderBoard(); return; }
     clearTimeout(game.fallTimer);
-    qsa('#board .trail, #board .bumped, #board .splash, #board .stray').forEach(function (c) { c.classList.remove('trail', 'bumped', 'splash', 'stray'); });
+    qsa('#board .trail, #board .bumped, #board .splash, #board .stray, #board .orig, #board .missing, #board .extra').forEach(function (c) {
+      c.classList.remove('trail', 'c2', 'bumped', 'splash', 'stray', 'orig', 'missing', 'extra');
+    });
+    qsa('#board .doodle, #board .robot-say').forEach(function (d) { d.remove(); });
+    $('envelope').classList.remove('opened');
     var hero = $('hero');
-    if (hero) hero.classList.remove('bump', 'happy', 'fall', 'fall-lava', 'fall-water');
+    if (hero) hero.classList.remove('bump', 'happy', 'fall', 'fall-lava', 'fall-water', 'fall-hole', 'fall-mimic', 'pen2');
     placeHero(game.map.start.r, game.map.start.c, game.dir, true);
     markTrail(game.map.start.r, game.map.start.c);
   }
 
-  function markTrail(r, c) {
+  function markTrail(r, c, color) {
     var cell = document.querySelector('#board [data-rc="' + r + ',' + c + '"]');
-    if (cell) cell.classList.add('trail');
+    if (!cell) return;
+    cell.classList.add('trail');
+    cell.classList.toggle('c2', color === 2); // desenat după găleata de vopsea
   }
 
   function speed() {
@@ -890,6 +956,7 @@
       clearTimeout(game.run.timer);
       game.run = null;
       game.editor.highlight(null);
+      game.editor.loopLeft(null);
       highlightPython(null);
       setRunning(false);
     }
@@ -905,11 +972,16 @@
     run.lastId = ev.id;
     game.editor.highlight(ev.id);
     highlightPython(ev.id);
-    if (ev.kind === 'move' || ev.kind === 'win') {
+    if (ev.kind === 'move' || ev.kind === 'win' || ev.kind === 'slide') {
       placeHero(st.r, st.c, st.dir);
-      markTrail(st.r, st.c);
+      markTrail(st.r, st.c, st.color);
+      tileEffects(ev);
+    } else if (ev.kind === 'teleport') {
+      teleportHero(ev, st);
     } else if (ev.kind === 'turn') {
       placeHero(st.r, st.c, st.dir);
+    } else if (ev.kind === 'check' && ev.left !== undefined) {
+      game.editor.loopLeft(ev.id, ev.left); // numărul buclei scade la fiecare repetare
     } else if (ev.kind === 'check' && ev.result !== undefined) {
       game.editor.flash(ev.id, ev.result ? 'check-yes' : 'check-no');
     } else if (ev.kind === 'bump') {
@@ -917,18 +989,21 @@
       bumpHero(ev);
     } else if (ev.kind === 'fall') {
       placeHero(st.r, st.c, st.dir);
+      tileEffects(ev);
       fallHero(ev.hazard, st.r, st.c);
     } else if (ev.kind === 'stray') {
       placeHero(st.r, st.c, st.dir);
       strayHero(st.r, st.c);
+    } else if (ev.kind === 'vague') {
+      vagueRobot(ev.what);
     }
     if (st.won || st.failed) {
       clearTimeout(run.timer);
       run.timer = setTimeout(finishRun, ev.kind === 'win' ? speed() + 150 : speed());
       return;
     }
-    // verificările buclelor trec mai repede decât pașii, ca să nu plictisească
-    var wait = ev.kind !== 'check' ? speed() : speed() * (ev.result === undefined ? 0.3 : 0.7);
+    // verificările buclelor trec mai repede decât pașii, ca să nu plictisească; alunecarea e mai rapidă
+    var wait = ev.kind === 'slide' ? speed() * 0.6 : ev.kind !== 'check' ? speed() : speed() * (ev.result === undefined ? 0.3 : 0.7);
     if (run.auto) run.timer = setTimeout(stepOnce, wait);
   }
 
@@ -945,11 +1020,63 @@
   }
 
   // eroul calcă în lavă sau în apă: se scufundă, cu sfârâit sau plescăit
+  // surprizele de pe hartă: cheia și moneda dispar, poarta se deschide, podul se prăbușește...
+  function tileEffects(ev) {
+    var el = cellEl(ev.r, ev.c);
+    if (ev.key || ev.coin) {
+      game.tilesDirty = true;
+      if (el) { el.classList.add('taken'); }
+      playDing(ev.coin ? 1320 : 880);
+    }
+    if (ev.gate) {
+      game.tilesDirty = true;
+      if (el) el.classList.add('open');
+      playDing(660);
+    }
+    if (ev.crumble) {
+      game.tilesDirty = true;
+      var old = cellEl(ev.crumble.r, ev.crumble.c);
+      if (old) old.classList.add('crumbled');
+    }
+    if (ev.paint) $('hero').classList.add('pen2');
+    if (ev.locked) {
+      if (el) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+      setGuide('Comoara e încuiată! 🔒 Mai sunt monede de adunat.', 'warn');
+    }
+  }
+
+  function teleportHero(ev, st) {
+    [cellEl(ev.from.r, ev.from.c), cellEl(ev.r, ev.c)].forEach(function (el) {
+      if (!el) return;
+      el.classList.remove('zap');
+      void el.offsetWidth;
+      el.classList.add('zap');
+    });
+    playDing(990);
+    placeHero(st.r, st.c, st.dir, true);
+    markTrail(st.r, st.c, st.color);
+  }
+
+  function playDing(freq) {
+    var ctx = audioCtx();
+    if (!ctx) return;
+    var t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(freq * 1.5, t + 0.12);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    o.connect(g).connect(ctx.destination);
+    o.start(t);
+    o.stop(t + 0.32);
+  }
+
   function fallHero(hazard, r, c) {
     var hero = $('hero');
     clearTimeout(game.fallTimer);
     game.fallTimer = setTimeout(function () {
-      if (hazard === 'lava') playSizzle(); else playSplash();
+      if (hazard === 'lava') playSizzle(); else if (hazard === 'water') playSplash(); else playBump();
       hero.classList.add('fall', 'fall-' + hazard);
       var cell = document.querySelector('#board [data-rc="' + r + ',' + c + '"]');
       if (cell) cell.classList.add('splash');
@@ -963,16 +1090,183 @@
     if (cell) cell.classList.add('stray');
   }
 
+  // ---------- Robotul desenator (Misiunea 1) ----------
+  function cellEl(r, c) { return document.querySelector('#board [data-rc="' + r + ',' + c + '"]'); }
+
+  // pătrățelele modelului (inclusiv startul), ca listă
+  function modelCells() {
+    var out = [];
+    game.map.cells.forEach(function (row, r) { row.forEach(function (ch, c) { if (Engine.INK[ch]) out.push({ r: r, c: c }); }); });
+    return out;
+  }
+
+  // un desen făcut de robot peste foaie, la (r, c), de mărimea a w × h pătrățele
+  function doodle(cls, r, c, html, w, h) {
+    var d = document.createElement('div');
+    d.className = 'doodle ' + cls;
+    d.style.left = 'calc(var(--pad) + ' + c * game.cell + 'px)';
+    d.style.top = 'calc(var(--pad) + ' + r * game.cell + 'px)';
+    d.style.width = (w || 1) * game.cell + 'px';
+    d.style.height = (h || 1) * game.cell + 'px';
+    if (html) d.innerHTML = html;
+    $('board').appendChild(d);
+    return d;
+  }
+
+  function robotSay(text, below) {
+    var say = doodle('robot-say', game.run ? game.run.st.r : game.map.start.r, game.run ? game.run.st.c : game.map.start.c);
+    say.className = 'robot-say' + (below ? ' below' : '');
+    say.style.width = say.style.height = '';
+    say.textContent = text;
+  }
+
+  var VAGUE_OWLS = [ // „o bufniță”: alt mâzgălit de fiecare dată
+    ['D...D', 'DDDDD', 'D.D.D', 'DDDDD'],
+    ['.DDD.', 'D...D', '.DDD.'],
+    ['DD', 'D.', 'DD']
+  ];
+  var VAGUE_HOUSES = [ // „o casă cu ușă și soare”: de fiecare dată robotul desenează alta
+    ['.D.', 'DDD', 'D.D', 'D.D', 'DDD'],
+    ['DDDDD', 'D...D', 'DDDDD'],
+    ['DD', 'DD'],
+    ['..D..', '.DDD.', 'DDDDD', 'D...D', 'D...D', 'DDDDD']
+  ];
+
+  // robotul execută ad literam instrucțiunea vagă
+  function vagueRobot(what) {
+    playBump();
+    var cells = modelCells();
+    var top = cells.reduce(function (a, b) { return b.r < a.r ? b : a; });
+    if (what === 'vSquare') {
+      doodle('tiny-square', 1, 1); // un pătrat minuscul, într-un colț
+      robotSay('AM DESENAT UN PĂTRAT.');
+    } else if (what === 'vRoof') {
+      robotSay('CE ESTE UN ACOPERIȘ?');
+    } else if (what === 'vDoor') {
+      doodle('door', Math.max(top.r - 1, 1), top.c, '🚪'); // ușa... deasupra casei
+      robotSay('AM PUS O UȘĂ.', true); // sub robot, ca să se vadă ușa de deasupra
+    } else if (what === 'vHouse' || what === 'vOwl') {
+      var shapes = what === 'vOwl' ? VAGUE_OWLS : VAGUE_HOUSES;
+      var house = shapes[Math.floor(Math.random() * shapes.length)];
+      var maxR = game.map.rows - 1 - house.length, maxC = game.map.cols - 1 - house[0].length;
+      var r0 = 1 + Math.floor(Math.random() * Math.max(maxR, 1)), c0 = 1 + Math.floor(Math.random() * Math.max(maxC, 1));
+      house.forEach(function (row, i) {
+        row.split('').forEach(function (ch, j) {
+          var el = ch === 'D' && cellEl(r0 + i, c0 + j);
+          if (el) el.classList.add('trail');
+        });
+      });
+      if (what === 'vHouse') doodle('sun', 1, game.map.cols - 2, '☀️');
+      robotSay(what === 'vOwl' ? 'AM DESENAT O BUFNIȚĂ.' : 'AM DESENAT O CASĂ CU UȘĂ ȘI SOARE.', true);
+    }
+  }
+
+  function vagueResult(what) {
+    if (what === 'vHouse' || what === 'vOwl') {
+      var thing = what === 'vOwl' ? 'o bufniță' : 'o casă';
+      // runda 1 a desenului dictat: comparăm cu originalul, apoi trecem la runda 2
+      setTimeout(function () {
+        if (!game || game.run) return;
+        modelCells().forEach(function (p) { var el = cellEl(p.r, p.c); if (el) el.classList.add('orig'); });
+        $('envelope').classList.add('opened');
+        setGuide('Am scos desenul din plic: robotul a desenat ' + thing + ', dar nu pe cea din plic!', 'bad');
+        showModal({
+          art: '<div class="modal-chest modal-emoji" aria-hidden="true">🤖</div>',
+          title: 'Runda 1: alt desen!',
+          body: '<p>Ai dat o instrucțiune vagă, iar robotul a desenat ' + thing + ' oarecare. Data viitoare ar desena alta! ' +
+            'Ca să iasă exact desenul din plic, trebuie să-i spui pas cu pas.</p>',
+          actions: [{ label: 'Runda 2: pas cu pas ▶', cls: 'btn-primary', onClick: startRound2 }]
+        });
+      }, 900);
+      return;
+    }
+    var why = {
+      vSquare: 'Robotul a desenat un pătrat minuscul, într-un colț. Nu i-ai spus cât de mare e pătratul și unde să-l deseneze!',
+      vRoof: 'Robotul nu știe ce e un acoperiș. El înțelege doar săgețile.',
+      vDoor: 'Robotul a pus ușa... deasupra casei! Nu i-ai spus unde.'
+    }[what];
+    setGuide('🤖 Robotul face exact ce îi spui, nu ce ai vrut să spui. Folosește instrucțiuni precise!', 'bad');
+    var level = game.level;
+    setTimeout(function () {
+      if (!game || game.run || game.level !== level) return;
+      var p = document.createElement('p');
+      p.textContent = why;
+      showModal({
+        art: '<div class="modal-chest modal-emoji" aria-hidden="true">🤖</div>',
+        title: 'Exact ce i-ai spus!',
+        body: p.outerHTML + '<p class="bug-hint">Dă-i robotului instrucțiuni precise, pas cu pas.</p>',
+        actions: [{ label: 'Bine', cls: 'btn-primary' }]
+      });
+    }, 1200);
+  }
+
+  function startRound2() {
+    if (!game) return;
+    game.round = 2;
+    var saved = profile.drafts[game.level.id] || [];
+    makeEditor(game.level.blocks, game.level.maxBlocks, saved);
+    resetHero();
+    setGuide(levelHint());
+  }
+
+  // desenul dictat: originalul din plic peste desenul robotului (ce lipsește și ce e în plus)
+  function revealOriginal(st) {
+    $('envelope').classList.add('opened');
+    modelCells().forEach(function (p) { var el = cellEl(p.r, p.c); if (el) el.classList.add('orig'); });
+    (st.missing || []).forEach(function (p) { var el = cellEl(p.r, p.c); if (el) el.classList.add('missing'); });
+    (st.extraCells || []).forEach(function (p) { var el = cellEl(p.r, p.c); if (el) el.classList.add('extra'); });
+  }
+
+  function mismatchText(st) {
+    var parts = [];
+    var m = (st.missing || []).length, x = (st.extraCells || []).length;
+    if (m) parts.push(m === 1 ? 'lipsește un pătrățel' : 'lipsesc ' + m + ' pătrățele');
+    if (x) parts.push(x === 1 ? 'un pătrățel e în plus' : m ? x + ' sunt în plus' : x + ' pătrățele sunt în plus');
+    return parts.join(', iar ');
+  }
+
+  // plicul cu desenul secret (doar la desenul dictat)
+  function renderEnvelope() {
+    var env = $('envelope');
+    env.hidden = !game.map.dictation;
+    var colors = game.level.colors || [];
+    env.style.setProperty('--ink1', colors[0] || 'var(--world)');
+    env.style.setProperty('--ink2', colors[1] || '#3b82f6');
+    if (env.hidden) return;
+    var map = game.map;
+    var mini = env.querySelector('.env-grid');
+    mini.style.gridTemplateColumns = 'repeat(' + (map.cols - 2) + ', 1fr)';
+    mini.innerHTML = '';
+    for (var r = 1; r < map.rows - 1; r++) {
+      for (var c = 1; c < map.cols - 1; c++) {
+        var i = document.createElement('i');
+        if (map.cells[r][c] === 'D') i.className = 'on';
+        if (map.cells[r][c] === 'E') i.className = 'on on2';
+        if (map.cells[r][c] === 'Q') i.className = 'pot';
+        if (map.cells[r][c] === 'P') i.className = 'blot';
+        if (r === map.start.r && c === map.start.c) i.className = 'on start';
+        mini.appendChild(i);
+      }
+    }
+  }
+
   function finishRun() {
     var run = game.run;
     if (!run) return;
     var st = run.st;
     game.run = null;
     setRunning(false);
+    if (game.map.dictation && !st.failed && !st.won) {
+      Engine.judge(st);
+      revealOriginal(st); // scoatem originalul din plic și îl punem peste desenul robotului
+    }
     game.editor.highlight(null);
+    game.editor.loopLeft(null);
     highlightPython(null);
 
     if (st.won) {
+      // lăsăm programul să se încheie (fără alți pași), ca să aflăm dacă mai avea ceva de făcut
+      while (!run.gen.next().done) { /* doar marchează st.extra */ }
       $('hero').classList.add('happy');
       if (game.mapIndex < game.level.maps.length - 1) {
         setGuide('Bravo! Acum încercăm același program pe harta ' + (game.mapIndex + 2) + '...', 'good');
@@ -983,7 +1277,7 @@
         }, 1100);
         return;
       }
-      levelWon();
+      levelWon(st);
       return;
     }
     // în Misiunea 2 copilul urmărește personajul și își dă seama singur unde a greșit;
@@ -993,24 +1287,43 @@
     var bugId = mission >= 3 ? run.lastId : null;
     if (mission === 3 && bugId) bugId = innerLoop(game.editor.getProgram(), bugId) || bugId;
     var why;
+    if (st.failed === 'vague') {
+      vagueResult(st.vague);
+      return;
+    }
     if (st.failed === 'bump') {
-      var what = st.bumped === 'P' ? 'un bolovan' : 'zid';
+      var what = st.bumped === 'P' ? (game.map.drawing ? 'o pată de cerneală' : 'un bolovan') : st.bumped === 'U' ? 'poarta încuiată' : 'zid';
       why = heroName(profile) + ' s-a lovit de ' + what + '.';
       setGuide('Au! ' + heroName(profile) + ' s-a lovit de ' + what + '. Schimbă programul și încearcă din nou.', 'bad');
+    } else if (st.failed === 'hazard' && st.hazard === 'mimic') {
+      why = 'Comoara falsă l-a mușcat pe ' + heroName(profile) + '!';
+      setGuide('Hap! Comoara era falsă! 👀 Cea adevărată nu are ochi. Încearcă din nou.', 'bad');
+    } else if (st.failed === 'hazard' && st.hazard === 'hole') {
+      why = heroName(profile) + ' a călcat pe un pod prăbușit.';
+      setGuide('Trosc! Podul se prăbușise deja. Pe un pod șubred poți trece o singură dată.', 'bad');
     } else if (st.failed === 'hazard') {
       var where = st.hazard === 'lava' ? 'în lavă' : 'în apă';
       why = heroName(profile) + ' a călcat ' + where + '.';
       setGuide((st.hazard === 'lava' ? 'Au, frige! ' : 'Pleosc! ') + heroName(profile) + ' a călcat ' + where +
         '. Găsește un drum care ocolește obstacolele.', 'bad');
+    } else if (st.failed === 'stray' && st.wrongColor) {
+      why = heroName(profile) + ' a desenat linia cu altă culoare.';
+      setGuide('Hopa! Linia asta trebuia desenată cu cealaltă culoare. Gândește-te când trece robotul prin găleata de vopsea.', 'bad');
     } else if (st.failed === 'stray') {
       why = heroName(profile) + ' a desenat în afara modelului.';
       setGuide('Hopa! ' + heroName(profile) + ' a ieșit din linia punctată și a stricat desenul. Robotul face exact ce îi spui!', 'bad');
     } else if (st.failed === 'limit') {
       why = 'Programul nu se mai termina, așa că l-am oprit.';
       setGuide('Programul pare că nu se mai termină, așa că l-am oprit. Verifică ce se întâmplă în bucle.', 'bad');
+    } else if (game.map.dictation) {
+      why = 'Desenul robotului nu seamănă cu cel din plic: ' + mismatchText(st) + '.';
+      setGuide('Am scos desenul din plic și l-am pus peste desenul robotului. Uite unde diferă! Schimbă programul și încearcă din nou.', 'bad');
     } else if (game.map.drawing) {
       why = 'Programul s-a terminat, dar desenul nu e gata.';
       setGuide('Programul s-a terminat, dar desenul nu e gata. Mai adaugă comenzi!', 'warn');
+    } else if (st.coinsLeft > 0 && st.r === game.map.treasure.r && st.c === game.map.treasure.c) {
+      why = 'Comoara e încuiată: mai sunt monede de adunat.';
+      setGuide('Comoara e încuiată! 🔒 Adună toate monedele, apoi vino înapoi.', 'warn');
     } else {
       why = 'Programul s-a terminat, dar ' + heroName(profile) + ' n-a ajuns la comoară.';
       setGuide('Programul s-a terminat, dar comoara e încă departe. Mai adaugă comenzi!', 'warn');
@@ -1042,22 +1355,29 @@
     });
   }
 
-  function levelWon() {
+  function levelWon(st) {
     var level = game.level;
     var prog = game.editor.getProgram();
     var blocks = Engine.countBlocks(prog);
     var stars = blocks <= level.optimal ? 3 : (blocks <= level.optimal + 2 ? 2 : 1);
+    // programul mai avea pași după final (repetări sau blocuri în plus): nu e perfect
+    var extra = !!(st && st.extra);
+    if (extra) stars = Math.min(stars, 2);
     var wasDone = !!profile.progress[level.id];
     Store.recordWin(profile, level.id, stars, blocks, clone(prog));
     save();
     syncProfile();
     var drawing = !!game.map.drawing;
-    setGuide(drawing ? 'Desenul e gata! 🎨' : 'Ai găsit comoara! 🎉', 'good');
+    setGuide(game.map.dictation ? 'Desenul robotului e identic cu cel din plic! 🎨' : drawing ? 'Desenul e gata! 🎨' : 'Ai găsit comoara! 🎉', 'good');
+    if (game.map.dictation) revealOriginal(st);
 
     var idx = LEVELS.indexOf(level);
     var next = LEVELS[idx + 1];
     var body = '<div class="big-stars">' + starsHtml(stars) + '</div>';
-    if (stars < 3) {
+    if (extra) {
+      body += '<p>Ai ajuns, dar programul mai avea pași de făcut după aceea (repetări sau blocuri în plus). ' +
+        'Poți lua 3 stele cu un program care se oprește exact la final. Încerci?</p>';
+    } else if (stars < 3) {
       body += '<p>Ai folosit ' + blocks + ' blocuri. Poți lua 3 stele cu un program mai scurt. Încerci?</p>';
     } else {
       body += '<p>Program perfect, cu doar ' + blocks + ' blocuri!</p>';
@@ -1104,7 +1424,7 @@
   $('btn-reset').addEventListener('click', function () {
     stopRun();
     if (game.mapIndex !== 0) loadMap(0); else resetHero();
-    setGuide(game.level.hint);
+    setGuide(levelHint());
   });
 
   // doar în previzualizare: profesorul vede o soluție scurtă (cu cele mai puține blocuri)

@@ -295,11 +295,35 @@ begin
 end $$;
 
 -- Pune copiii în clasă (p_class null = îi scoate din clasă).
+-- Misiunile deschise pentru toți colegii din clasă (în afară de p_except); fără colegi, doar prima.
+create or replace function public.class_worlds(p_class int, p_except text[])
+returns int[] language sql stable security definer set search_path = public as $$
+  select coalesce(array_agg(x.w order by x.w), '{1}') from (
+    select distinct unnest(s.worlds) as w from public.students s
+    where s.class_id = p_class and not s.name = any(coalesce(p_except, '{}'))) x
+  where not exists (
+    select 1 from public.students s2
+    where s2.class_id = p_class and not s2.name = any(coalesce(p_except, '{}')) and not x.w = any(s2.worlds))
+$$;
+
+-- Copiii mutați sau adăugați într-o clasă primesc misiunile deschise deja colegilor.
+create or replace function public.join_class_worlds(p_names text[], p_class int)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  cw int[];
+begin
+  if p_class is null then return; end if;
+  cw := public.class_worlds(p_class, p_names);
+  update public.students set worlds = (select array_agg(distinct w order by w) from unnest(worlds || cw) w)
+  where name = any(coalesce(p_names, '{}'));
+end $$;
+
 create or replace function public.admin_set_student_class(p_user text, p_password text, p_names text[], p_class int)
 returns void language plpgsql security definer set search_path = public as $$
 begin
   perform public.admin_check(p_user, p_password);
   update public.students set class_id = p_class where name = any(coalesce(p_names, '{}'));
+  perform public.join_class_worlds(p_names, p_class);
 end $$;
 
 -- Adaugă copii înainte să intre în joc (apar în clasă; când intră, își găsesc profilul).
@@ -316,6 +340,7 @@ begin
     on conflict (name) do update set class_id = coalesce(excluded.class_id, s.class_id);
     cnt := cnt + 1;
   end loop;
+  perform public.join_class_worlds(p_names, p_class);
   return cnt;
 end $$;
 
@@ -330,7 +355,8 @@ revoke all on function
   public.admin_save_class(text, text, int, text), public.admin_delete_class(text, text, int),
   public.admin_save_teacher(text, text, int, text, text), public.admin_delete_teacher(text, text, int),
   public.admin_set_class_teachers(text, text, int, int[]), public.admin_set_student_class(text, text, text[], int),
-  public.admin_add_students(text, text, text[], int)
+  public.admin_add_students(text, text, text[], int),
+  public.class_worlds(int, text[]), public.join_class_worlds(text[], int)
 from public, anon, authenticated;
 
 grant execute on function

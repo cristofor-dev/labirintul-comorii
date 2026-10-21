@@ -347,11 +347,12 @@ img { display: block; }
 .board.drawing .cell.start { background: #fff; }
 .cell.ink::after {
   content: ''; position: absolute; inset: 22%; border-radius: 30%;
-  border: 2px dashed color-mix(in srgb, var(--world) 55%, #fff); transition: all .2s;
+  border: 2px dashed color-mix(in srgb, var(--ink1, var(--world)) 60%, #fff); transition: all .2s;
 }
+.cell.ink2::after { border-color: color-mix(in srgb, var(--ink2) 60%, #fff); }
 .board.drawing .cell.path.ink.trail::after {
   inset: 12%; left: 12%; top: 12%; width: auto; height: auto; transform: none; opacity: 1;
-  border: 0; border-radius: 26%; background: var(--world);
+  border: 0; border-radius: 26%; background: var(--ink1, var(--world));
 }
 .cell.stray::after {
   content: ''; position: absolute; inset: 14%; border-radius: 30%; opacity: .9;
@@ -359,6 +360,41 @@ img { display: block; }
   animation: splash .6s ease-out;
 }
 .modal-emoji { font-size: 84px; line-height: 1; text-align: center; }
+.board.drawing .cell.path.trail:not(.ink):not(.pot)::after {
+  inset: 12%; left: 12%; top: 12%; width: auto; height: auto; transform: none; opacity: 1;
+  border-radius: 26%; background: var(--ink1, var(--world));
+}
+.board.drawing .cell.path.trail.c2::after { background: var(--ink2); }
+/* originalul scos din plic, pus peste desenul robotului */
+.cell.orig { box-shadow: inset 0 0 0 3px #22c55e; }
+.board.drawing .cell.path.missing { background: repeating-linear-gradient(45deg, #fef9c3 0 5px, #fff 5px 10px); box-shadow: inset 0 0 0 3px #f59e0b; }
+.board.drawing .cell.path.extra::after { background: #ef4444; }
+.doodle { position: absolute; z-index: 1; display: grid; place-items: center; pointer-events: none; animation: pop .4s var(--ease); }
+.doodle.tiny-square::after { content: ''; position: absolute; left: 8%; top: 8%; width: 16%; height: 16%; border: 2px solid var(--world); border-radius: 2px; }
+.doodle.door, .doodle.sun { font-size: calc(var(--cell) * .7); line-height: 1; }
+.robot-say {
+  position: absolute; z-index: 3; transform: translate(-30%, -115%); padding: 6px 10px; max-width: 220px;
+  background: #0f172a; color: #a5f3fc; font: 800 .8rem/1.25 ui-monospace, Menlo, monospace; letter-spacing: .03em;
+  border-radius: 12px; box-shadow: 0 8px 20px -8px rgba(0, 0, 0, .5); white-space: nowrap;
+}
+.robot-say::after { content: ''; position: absolute; left: 24px; bottom: -6px; border: 6px solid transparent; border-top-color: #0f172a; border-bottom: 0; }
+.robot-say.below { transform: translate(-30%, calc(var(--cell) + 8px)); }
+.robot-say.below::after { bottom: auto; top: -6px; border: 6px solid transparent; border-bottom-color: #0f172a; border-top: 0; }
+@keyframes pop { 0% { transform: scale(.4); opacity: 0; } 100% { opacity: 1; } }
+
+/* plicul cu desenul secret */
+.envelope {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 16px;
+  background: linear-gradient(160deg, #fef3c7, #fde68a); border: 1px solid #f59e0b55; box-shadow: var(--sh-sm);
+}
+.env-flap { font-size: 1.8rem; }
+.env-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.env-text small { color: #92400e; font-size: .8rem; }
+.env-grid { display: grid; gap: 2px; width: 120px; padding: 6px; background: #fff; border-radius: 8px; flex: none; }
+.env-grid i { aspect-ratio: 1; border-radius: 2px; background: #f1f5f9; }
+.env-grid i.on { background: var(--world); }
+.env-grid i.start { box-shadow: inset 0 0 0 2px #0f172a; }
+.envelope.opened { background: linear-gradient(160deg, #dcfce7, #bbf7d0); border-color: #22c55e55; }
 .cell.splash { animation: splash .8s ease-out; z-index: 1; }
 
 .hero.fall .hero-body { animation: sink .9s ease-in forwards; }
@@ -452,6 +488,8 @@ img { display: block; }
 .blk.cat-turn { --c: var(--turn); }
 .blk.cat-loop { --c: var(--loop); }
 .blk.cat-cond { --c: var(--cond); }
+.blk.cat-vague { --c: #64748b; }
+.blk.cat-vague .lbl { font-style: italic; }
 .blk .ico { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; background: rgba(255, 255, 255, .22); font-size: 1.15rem; line-height: 1; }
 .blk .lbl { padding-right: 4px; }
 .blk .del {
@@ -473,6 +511,9 @@ img { display: block; }
 .num b { min-width: 26px; text-align: center; }
 .nb { border: 0; background: #fff4dc; width: 28px; height: 30px; font-weight: 900; cursor: pointer; }
 .nb:hover { background: #ffe6b3; }
+.blk.counting > .blk-head .num b { color: #b45309; }
+.num.tick b { display: inline-block; animation: tick .45s var(--ease); }
+@keyframes tick { 0% { transform: scale(1.6); } 100% { transform: scale(1); } }
 .palette .num b { padding: 0 8px; }
 .cond { border: 0; border-radius: 9px; padding: 4px 6px; font-weight: 800; background: #fff; color: var(--text); cursor: pointer; }
 .cond-ph { background: #fff; color: var(--text); border-radius: 9px; padding: 2px 8px; }
@@ -676,3 +717,42 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   .workspace .blk:not(.container) { min-width: 0; }
   .login-card { padding: 24px 18px; }
 }
+
+/* ---------- Surprizele de pe hartă ---------- */
+.cell .tile { position: absolute; inset: 0; display: grid; place-items: center; font-size: calc(var(--cell) * .6); line-height: 1; z-index: 1; transition: transform .3s var(--ease), opacity .3s; }
+.cell.taken .tile { transform: scale(1.6) translateY(-30%); opacity: 0; }
+.cell.coin .tile { animation: glow 2s ease-in-out infinite; }
+.cell.gate { background: repeating-linear-gradient(90deg, #78350f 0 4px, #b45309 4px 9px); box-shadow: inset 0 0 0 3px #78350f; }
+.cell.gate .tile { font-size: calc(var(--cell) * .45); }
+.cell.gate.open { background: #fffaf0; box-shadow: none; transition: background .4s; }
+.cell.gate.open .tile { opacity: 0; transform: scale(.4); }
+.cell.portal { background: radial-gradient(circle, #ede9fe 0 30%, #c4b5fd 55%, #fffaf0 75%); }
+.cell.portal .tile { animation: spin 3s linear infinite; }
+.cell.zap { animation: zap .5s ease-out; }
+.cell.ice { background: linear-gradient(135deg, #e0f2fe 0 40%, #f0f9ff 45%, #bae6fd 50%, #e0f2fe 60%); box-shadow: inset 0 0 0 1px #7dd3fc; }
+.cell.crumbly { background: repeating-linear-gradient(0deg, #a16207 0 5px, #ca8a04 5px calc(var(--cell) / 4)); box-shadow: inset 0 3px 0 #713f12, inset 0 -3px 0 #713f12; }
+.cell.crumbly::after { content: ''; position: absolute; inset: 20% 30%; border-left: 2px solid rgba(0, 0, 0, .35); transform: skewX(-20deg); }
+.cell.crumbly.crumbled { background: radial-gradient(circle, #0f172a 0 45%, #1e3a8a 70%); box-shadow: none; animation: crumble .5s ease-out; }
+.cell.crumbly.crumbled::after { display: none; }
+.cell.push { background: #fef3c7; }
+.cell.push .arrow { color: #d97706; font-weight: 900; transform: rotate(var(--rot)); animation: nudge 1.2s ease-in-out infinite; }
+.cell.fake img { filter: hue-rotate(-25deg) saturate(1.2); }
+.cell.fake .eyes { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); font-size: calc(var(--cell) * .34); z-index: 3; line-height: 1; animation: blink 3s infinite; }
+.cell.pot { background: #fff; }
+.cell.treasure.shake img { animation: shake .5s; }
+.board.drawing .cell.rock::after { background: radial-gradient(circle at 40% 40%, #334155, #0f172a 70%); border-radius: 50% 40% 55% 45%; box-shadow: none; }
+.hero.pen2 .hero-body img { filter: drop-shadow(0 0 6px var(--ink2)) drop-shadow(0 4px 4px rgba(0, 0, 0, .3)); }
+.hero.fall-hole .hero-body img { filter: brightness(.4); }
+.hero.fall-mimic .hero-body img { filter: drop-shadow(0 0 10px #a855f7) hue-rotate(200deg); }
+.lvl-icon { position: absolute; top: 8px; left: 10px; font-size: 1.05rem; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .15)); }
+.level-btn.locked .lvl-icon { filter: grayscale(1); opacity: .5; }
+.env-grid i.on2 { background: var(--ink2, #3b82f6); }
+.env-grid i.pot { background: #fde68a; box-shadow: inset 0 0 0 2px #d97706; }
+.env-grid i.blot { background: #0f172a; border-radius: 50%; }
+.env-grid i.on { background: var(--ink1, var(--world)); }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes zap { 0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, .9); } 100% { box-shadow: 0 0 0 calc(var(--cell) * .5) rgba(139, 92, 246, 0); } }
+@keyframes crumble { 0% { transform: scale(1); } 40% { transform: scale(.85) rotate(3deg); } 100% { transform: scale(1); } }
+@keyframes nudge { 50% { transform: rotate(var(--rot)) translateX(15%); } }
+@keyframes blink { 0%, 92%, 100% { opacity: 1; } 95% { opacity: .1; } }
+@keyframes shake { 25% { transform: translateX(-8%); } 75% { transform: translateX(8%); } }
