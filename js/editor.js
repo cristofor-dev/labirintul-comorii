@@ -22,7 +22,8 @@
     vHouse:      { icon: '🏠', label: 'Desenează o casă cu ușă și soare', cat: 'vague' },
     vOwl:        { icon: '🦉', label: 'Desenează o bufniță', cat: 'vague' }
   };
-  var CONDS = { front: 'în față', left: 'la stânga', right: 'la dreapta' };
+  // „Dacă e drum …”: cele 4 direcții ale hărții, ca săgețile
+  var CONDS = { up: '⬆️ sus', right: '➡️ la dreapta', down: '⬇️ jos', left: '⬅️ la stânga' };
   var MIN_N = 1, MAX_N = 12;
   var DRAG_THRESHOLD = 6;
 
@@ -136,7 +137,7 @@
       } else if (node.type === 'repeatUntil') {
         head = 'Repetă până la comoară';
       } else {
-        head = 'Dacă e drum ' + (inPalette ? '<span class="cond-ph">în față ▾</span>' + (node.type === 'ifElse' ? ' … altfel' : '') : condSelect(node.cond));
+        head = 'Dacă e drum ' + (inPalette ? '<span class="cond-ph">' + CONDS.right + ' ▾</span>' + (node.type === 'ifElse' ? ' … altfel' : '') : condSelect(node.cond));
       }
       el.appendChild(h('div', 'blk-head', '<span class="ico">' + m.icon + '</span><span class="lbl">' + head + '</span>' + del));
       if (inPalette) return el; // în paletă arătăm doar capul blocului, ca să încapă
@@ -386,5 +387,5 @@
     };
   }
 
-  root.Editor = { create: create, META: META };
+  root.Editor = { create: create, META: META, CONDS: CONDS };
 })(window);

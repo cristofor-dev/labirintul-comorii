@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=36">
+  <link rel="stylesheet" href="style.css?v=37">
 </head>
 <body>
 
@@ -144,6 +144,28 @@
     </main>
   </section>
 
+  <!-- ===== Dosarele detectivului (provocările din Misiunea 4) ===== -->
+  <section id="screen-challenge" class="screen" hidden>
+    <header class="topbar">
+      <button id="ch-back" class="btn btn-ghost" type="button">← Nivele</button>
+      <h2 id="ch-title" class="game-title"></h2>
+      <div class="who">
+        <img class="avatar-sm kid-avatar" alt="">
+        <strong class="kid-name hide-sm"></strong>
+      </div>
+    </header>
+    <main class="challenge">
+      <div class="ch-card">
+        <div id="ch-steps" class="ch-steps" aria-label="Sarcinile dosarului"></div>
+        <div class="guide">
+          <img src="assets/personaje/bufnita.png" alt="" class="guide-owl">
+          <p id="ch-text" class="bubble" aria-live="polite"></p>
+        </div>
+        <div id="ch-body" class="ch-body"></div>
+      </div>
+    </main>
+  </section>
+
   <!-- ===== Panou profesor ===== -->
   <section id="screen-teacher" class="screen" data-role="local" hidden>
     <header class="topbar">
@@ -223,6 +245,7 @@
                 <th data-sort="class" class="col-class cloud-only"><button type="button" class="th-sort">Clasa</button></th>
                 <th data-sort="level"><button type="button" class="th-sort">Nivel atins</button></th>
                 <th data-sort="stars"><button type="button" class="th-sort" aria-label="Stele">⭐</button></th>
+                <th class="col-cases" title="Dosarele detectivului (provocările din Misiunea 4)">🗂️ Dosare</th>
                 <th data-sort="worlds" class="col-worlds"><button type="button" class="th-sort">Misiuni deschise</button></th>
                 <th data-sort="date"><button type="button" class="th-sort">Ultima dată</button></th>
                 <th></th>
@@ -246,13 +269,13 @@
     </div>
   </div>
 
-  <script src="js/levels.js?v=36"></script>
-  <script src="js/engine.js?v=36"></script>
-  <script src="js/storage.js?v=36"></script>
-  <script src="js/config.js?v=36"></script>
-  <script src="js/cloud.js?v=36"></script>
-  <script src="js/editor.js?v=36"></script>
-  <script src="js/python.js?v=36"></script>
-  <script src="js/app.js?v=36"></script>
+  <script src="js/levels.js?v=37"></script>
+  <script src="js/engine.js?v=37"></script>
+  <script src="js/storage.js?v=37"></script>
+  <script src="js/config.js?v=37"></script>
+  <script src="js/cloud.js?v=37"></script>
+  <script src="js/editor.js?v=37"></script>
+  <script src="js/python.js?v=37"></script>
+  <script src="js/app.js?v=37"></script>
 </body>
 </html>

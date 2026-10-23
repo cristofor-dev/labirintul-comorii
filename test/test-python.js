@@ -33,8 +33,9 @@ var RUNNER = [
 var failures = 0;
 Levels.LEVELS.forEach(function (level) {
   level.maps.forEach(function (m, i) {
-    // gheața, portalurile și săgețile magice mută eroul singure; codul Python arată doar pașii programului
-    if (/[IO<>^v]/.test(m.grid.join(''))) return;
+    // gheața, portalurile și săgețile magice mută eroul singure, iar porțile țin minte cheia;
+    // codul Python arată doar pașii programului
+    if (/[IOU<>^v]/.test(m.grid.join(''))) return;
     var ctx = { map: Engine.parseGrid(m.grid), grid: m.grid, dir: m.dir };
     var code = Python.toText(Engine.fromCompact(level.solution), ctx);
     var out;

@@ -4,6 +4,7 @@
 
   var LEVELS = Levels.LEVELS;
   var WORLDS = Levels.WORLDS;
+  var CHALLENGES = Levels.CHALLENGES;
 
   var PRESETS = [
     { id: 'bufnita', name: 'Bufnița Eroică', src: 'assets/personaje/bufnita.png' },
@@ -299,7 +300,20 @@
     var idx = LEVELS.indexOf(level);
     var prev = LEVELS[idx - 1];
     if (!prev || prev.world !== level.world) return true;
+    var gate = challengeAfter(prev.id); // nivelul de după un dosar se deschide doar după ce dosarul e rezolvat
+    if (gate && !profile.progress[gate.id]) return false;
     return !!profile.progress[prev.id];
+  }
+
+  // dosarul detectivului care stă după un nivel (Misiunea 4), dacă există
+  function challengeAfter(levelId) {
+    return CHALLENGES.filter(function (c) { return c.after === levelId; })[0] || null;
+  }
+
+  function challengeUnlocked(c) {
+    if (!worldAvailable(c.world)) return false;
+    if (preview) return true;
+    return Store.isWorldUnlocked(profile, c.world) && !!profile.progress[c.after];
   }
 
   // Harta Academiei: Academia sus, apoi un drum prin toate misiunile din carnet (insignele).
@@ -495,6 +509,21 @@
         (isNext ? '<span class="lvl-tag">Joacă</span>' : '');
       b.addEventListener('click', function () { openLevel(l); });
       grid.appendChild(b);
+      var c = challengeAfter(l.id);
+      if (!c) return;
+      var open = challengeUnlocked(c), solved = !!profile.progress[c.id];
+      var cNext = open && !solved && current;
+      if (cNext) current = false;
+      var cb = document.createElement('button');
+      cb.type = 'button';
+      cb.className = 'level-btn challenge' + (solved ? ' done' : '') + (open ? '' : ' locked') + (cNext ? ' next' : '');
+      cb.disabled = !open;
+      cb.innerHTML = '<span class="lvl-num">' + (open ? '🗂️' : '🔒') + '</span>' +
+        '<span class="lvl-name">' + c.name + '</span><span class="lvl-topic">' + c.topic + '</span>' +
+        '<span class="lvl-case">' + (solved ? '🔍 Rezolvat' : 'Provocare') + '</span>' +
+        (cNext ? '<span class="lvl-tag">Rezolvă</span>' : '');
+      cb.addEventListener('click', function () { openChallenge(c); });
+      grid.appendChild(cb);
     });
     box.appendChild(sec);
   }
@@ -850,11 +879,18 @@
     var size = cellSize();
     game.cell = size;
     var board = $('board');
+    board.innerHTML = '';
+    fillBoard(board, map, size, game.level.colors).id = 'hero';
+    renderEnvelope();
+    resetHero();
+  }
+
+  // pătrățelele hărții și eroul; folosită și de tabla mică din dosarele detectivului
+  function fillBoard(board, map, size, colors) {
     board.style.setProperty('--cell', size + 'px');
     board.style.gridTemplateColumns = 'repeat(' + map.cols + ', var(--cell))';
-    board.innerHTML = '';
     board.classList.toggle('drawing', !!map.drawing);
-    var colors = game.level.colors || [];
+    colors = colors || [];
     board.style.setProperty('--ink1', colors[0] || 'var(--world)');
     board.style.setProperty('--ink2', colors[1] || '#3b82f6');
     for (var r = 0; r < map.rows; r++) {
@@ -876,13 +912,11 @@
       }
     }
     var hero = document.createElement('div');
-    hero.id = 'hero';
     hero.className = 'hero';
     hero.innerHTML = '<div class="hero-arrow"></div><div class="hero-body"><img alt=""></div>';
     hero.querySelector('img').src = avatarSrc(profile);
     board.appendChild(hero);
-    renderEnvelope();
-    resetHero();
+    return hero;
   }
 
   function placeHero(r, c, dir, instant) {
@@ -1389,6 +1423,10 @@
     if (next && next.world !== level.world &&
         (preview || !worldAvailable(next.world) || !Store.isWorldUnlocked(profile, next.world))) {
       body += '<p class="world-done">Ai terminat ' + mission + '! Ești un adevărat Erou Isteț! 🏆</p>';
+    } else if (challengeAfter(level.id) && !profile.progress[challengeAfter(level.id).id]) {
+      var gate = challengeAfter(level.id);
+      body += '<p class="world-done">Următorul nivel e păzit de ' + gate.name + '. Rezolvă provocarea ca să treci mai departe! 🗂️</p>';
+      actions.push({ label: gate.name + ' ▶', cls: 'btn-primary', onClick: function () { openChallenge(gate); } });
     } else if (next) {
       actions.push({ label: 'Nivelul următor ▶', cls: 'btn-primary', onClick: function () { openLevel(next); } });
     } else {
@@ -1469,6 +1507,524 @@
       else resetHero();
     }, 150);
   });
+
+  // ================= Dosarele detectivului (Misiunea 4) =================
+  // Între nivelele Misiunii 4 stau 3 dosare cu câte 3 sarcini care recapitulează misiunile de dinainte.
+  // Încercările sunt nelimitate; la o greșeală Bufnița dă un indiciu, niciodată răspunsul.
+  // La final, dosarul se salvează ca un nivel (id 101–103) cu 0 stele și numărul de greșeli în „blocks”.
+  var chal = null; // { c, step, mistakes, mb, timer, busy }
+
+  var CH_HINTS = {
+    pick: 'Nu e acesta. Pune degetul pe punctul de start și urmărește programul pas cu pas, pe fiecare desen.',
+    block: 'Nu e acesta. Pune degetul pe START și urmărește programul pe hartă, bloc cu bloc. Unde se încurcă eroul?',
+    fix: 'Încă nu. Uită-te pe hartă încotro trebuia să meargă eroul în locul acela.',
+    fixN: 'Încă nu. Numără pe hartă câți pași trebuie făcuți acolo.',
+    order: 'Ordinea contează! Urmărește drumul cu degetul, de la START până la comoară.',
+    where: 'Nu chiar. Urmărește programul cu degetul, pas cu pas. Ai grijă de câte ori se repetă fiecare buclă!',
+    build: 'Programul nu a mers încă. Uită-te unde s-a oprit eroul și repară.',
+    draw: 'Desenul nu seamănă încă cu cel din plic. Uită-te ce lipsește și ce e în plus.'
+  };
+
+  function openChallenge(c) {
+    stopRun();
+    stopChallenge();
+    mapWorld = c.world; // „← Nivele” te duce înapoi la misiune
+    chal = { c: c, step: 0, mistakes: 0 };
+    document.documentElement.style.setProperty('--world', worldById(c.world).color);
+    $('ch-title').textContent = c.name + ' · ' + c.topic;
+    show('screen-challenge');
+    renderChSteps();
+    setChText(c.intro + ' Rezolvă cele ' + c.tasks.length + ' sarcini ca să deschizi nivelul următor.');
+    var body = $('ch-body');
+    body.className = 'ch-body ch-intro';
+    body.innerHTML = '<div class="ch-folder" aria-hidden="true">🗂️</div>' +
+      '<p class="ch-lead">Bufnița ți-a lăsat un dosar secret. Fiecare sarcină verifică ce ai învățat până acum.</p>';
+    var go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'btn btn-primary btn-big';
+    go.textContent = 'Deschide dosarul ▶';
+    go.addEventListener('click', function () { renderTask(0); });
+    body.appendChild(go);
+  }
+
+  function stopChallenge() {
+    if (chal) clearTimeout(chal.timer);
+  }
+
+  function setChText(text, mood) {
+    var g = $('ch-text');
+    g.textContent = text;
+    g.className = 'bubble' + (mood ? ' ' + mood : '');
+  }
+
+  function renderChSteps() {
+    var box = $('ch-steps');
+    box.innerHTML = chal.c.tasks.map(function (t, i) {
+      return '<span class="ch-step' + (i < chal.step ? ' done' : i === chal.step ? ' on' : '') + '">' +
+        (i < chal.step ? '✓' : i + 1) + '</span>';
+    }).join('<i class="ch-line"></i>');
+  }
+
+  function chMistake(text) {
+    chal.mistakes++;
+    playBump();
+    setChText(text, 'bad');
+  }
+
+  // blocurile unui program, doar de citit (fiecare bloc știe drumul până la el, pentru sarcinile cu bug)
+  function staticProgram(list) {
+    var ws = document.createElement('div');
+    ws.className = 'workspace static';
+    ws.appendChild(staticSlot(list, []));
+    return ws;
+  }
+
+  function staticSlot(list, path) {
+    var slot = document.createElement('div');
+    slot.className = 'slot';
+    list.forEach(function (node, i) { slot.appendChild(staticBlock(node, path.concat([i]))); });
+    return slot;
+  }
+
+  function staticBlock(node, path) {
+    var m = Editor.META[node.type];
+    var el = document.createElement('div');
+    el.className = 'blk cat-' + m.cat + ' t-' + node.type;
+    el.dataset.id = node.id;
+    el.dataset.path = JSON.stringify(path);
+    if (!node.body) {
+      el.innerHTML = '<span class="ico">' + m.icon + '</span><span class="lbl">' + m.label + '</span>';
+      return el;
+    }
+    el.classList.add('container');
+    var head = node.type === 'repeat' ? 'Repetă <span class="num"><b>' + node.n + '</b></span> ori'
+      : node.type === 'repeatUntil' ? 'Repetă până la comoară'
+      : 'Dacă e drum <span class="cond-ph">' + Editor.CONDS[node.cond] + '</span>' + (node.type === 'ifElse' ? ' … altfel' : '');
+    var h = document.createElement('div');
+    h.className = 'blk-head';
+    h.innerHTML = '<span class="ico">' + m.icon + '</span><span class="lbl">' + head + '</span>';
+    el.appendChild(h);
+    el.appendChild(staticSlot(node.body, path.concat(['body'])));
+    if (node.type === 'ifElse') {
+      var mid = document.createElement('div');
+      mid.className = 'blk-mid';
+      mid.textContent = 'altfel';
+      el.appendChild(mid);
+      el.appendChild(staticSlot(node.else, path.concat(['else'])));
+    }
+    var foot = document.createElement('div');
+    foot.className = 'blk-foot';
+    el.appendChild(foot);
+    return el;
+  }
+
+  function nodeAt(list, path) {
+    var node = list[path[0]];
+    for (var i = 1; i < path.length; i += 2) node = node[path[i]][path[i + 1]];
+    return node;
+  }
+
+  // tabla mică a unei sarcini; reset() o redesenează cu eroul la start
+  function miniBoard(box, grid, dictation) {
+    var map = Engine.parseGrid(grid);
+    map.dictation = !!dictation;
+    var board = document.createElement('div');
+    board.className = 'board ch-board';
+    box.appendChild(board);
+    var w = Math.max(box.clientWidth - 20, 200);
+    var size = Math.max(24, Math.floor(Math.min(w / map.cols, 360 / map.rows, 58)));
+    var mb = { map: map, board: board, size: size };
+    mb.cell = function (r, c) { return board.querySelector('[data-rc="' + r + ',' + c + '"]'); };
+    mb.place = function (r, c, dir) {
+      mb.hero.style.transform = 'translate(' + c * size + 'px,' + r * size + 'px)';
+      mb.hero.classList.toggle('face-left', dir === 3);
+    };
+    mb.trail = function (r, c, color) {
+      var el = mb.cell(r, c);
+      if (!el) return;
+      el.classList.add('trail');
+      el.classList.toggle('c2', color === 2);
+    };
+    mb.reset = function () {
+      board.innerHTML = '';
+      mb.hero = fillBoard(board, map, size);
+      mb.hero.querySelector('.hero-arrow').hidden = true; // eroul nu se rotește: săgeata nu ajută aici
+      mb.hero.style.transition = 'none';
+      mb.place(map.start.r, map.start.c, 1);
+      void mb.hero.offsetWidth;
+      mb.hero.style.transition = '';
+      mb.trail(map.start.r, map.start.c);
+    };
+    mb.reset();
+    return mb;
+  }
+
+  // rulează programul pe tabla mică, cu animație; onDone(st) la final
+  function chRun(mb, program, onDone, side) {
+    clearTimeout(chal.timer);
+    chal.busy = true;
+    mb.reset();
+    var st = Engine.newState(mb.map, 1);
+    var gen = Engine.run(program, st);
+    var mine = chal;
+    function mark(id) {
+      if (!side) return;
+      Array.prototype.forEach.call(side.querySelectorAll('.running'), function (b) { b.classList.remove('running'); });
+      var el = id && side.querySelector('[data-id="' + id + '"]');
+      if (el) el.classList.add('running');
+    }
+    function finish() {
+      mark(null);
+      if (mb.map.dictation && !st.failed) Engine.judge(st);
+      mine.busy = false;
+      if (chal === mine) onDone(st);
+    }
+    function tick() {
+      if (chal !== mine) return;
+      var res = gen.next();
+      if (res.done) { finish(); return; }
+      var ev = res.value;
+      mark(ev.id);
+      if (ev.kind === 'move' || ev.kind === 'win' || ev.kind === 'slide' || ev.kind === 'teleport' || ev.kind === 'fall' || ev.kind === 'stray') {
+        mb.place(st.r, st.c, st.dir);
+        mb.trail(st.r, st.c, st.color);
+        var el = mb.cell(ev.r, ev.c);
+        if ((ev.key || ev.coin) && el) { el.classList.add('taken'); playDing(ev.coin ? 1320 : 880); }
+        if (ev.gate && el) el.classList.add('open');
+        if (ev.crumble) { var old = mb.cell(ev.crumble.r, ev.crumble.c); if (old) old.classList.add('crumbled'); }
+        if (ev.kind === 'fall') { playSplash(); mb.hero.classList.add('fall', 'fall-' + ev.hazard); }
+        if (ev.kind === 'stray') { playBump(); if (el) el.classList.add('stray'); }
+        if (ev.kind === 'win') mb.hero.classList.add('happy');
+      } else if (ev.kind === 'bump') {
+        playBump();
+        var wall = mb.cell(ev.r, ev.c);
+        if (wall) wall.classList.add('bumped');
+        mb.hero.style.setProperty('--bx', Engine.DC[st.dir] * mb.size * 0.28 + 'px');
+        mb.hero.style.setProperty('--by', Engine.DR[st.dir] * mb.size * 0.28 + 'px');
+        mb.hero.classList.add('bump');
+      } else if (ev.kind === 'check' && ev.result !== undefined && side) {
+        var blk = side.querySelector('[data-id="' + ev.id + '"]');
+        if (blk) { blk.classList.remove('check-yes', 'check-no'); void blk.offsetWidth; blk.classList.add(ev.result ? 'check-yes' : 'check-no'); }
+      }
+      if (st.won || st.failed) { chal.timer = setTimeout(finish, 650); return; }
+      chal.timer = setTimeout(tick, ev.kind === 'check' ? 140 : 320);
+    }
+    tick();
+  }
+
+  // ---------- Sarcinile ----------
+  function renderTask(i) {
+    stopChallenge();
+    chal.step = i;
+    chal.busy = false;
+    renderChSteps();
+    var t = chal.c.tasks[i];
+    setChText(t.q);
+    var body = $('ch-body');
+    body.className = 'ch-body ch-' + t.type;
+    body.innerHTML = '';
+    var left = document.createElement('div');
+    left.className = 'ch-left';
+    var right = document.createElement('div');
+    right.className = 'ch-right';
+    body.appendChild(left);
+    body.appendChild(right);
+    TASKS[t.type](t, left, right);
+  }
+
+  function taskSolved(text) {
+    playDing(1320);
+    setChText(text || 'Bravo, detective! 🔍', 'good');
+    var body = $('ch-body');
+    var last = chal.step === chal.c.tasks.length - 1;
+    var next = document.createElement('div');
+    next.className = 'ch-next';
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-primary btn-big';
+    b.textContent = last ? 'Închide dosarul 🔍' : 'Sarcina următoare ▶';
+    b.addEventListener('click', function () { if (last) challengeSolved(); else renderTask(chal.step + 1); });
+    next.appendChild(b);
+    body.appendChild(next);
+    body.classList.add('solved');
+    b.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function challengeSolved() {
+    var c = chal.c, mistakes = chal.mistakes;
+    var first = !profile.progress[c.id];
+    if (first) {
+      profile.progress[c.id] = { stars: 0, blocks: Math.min(mistakes, 1000), program: null, done: new Date().toISOString() };
+      save();
+      syncProfile();
+    }
+    chal.step = c.tasks.length;
+    renderChSteps();
+    var idx = LEVELS.indexOf(LEVELS.filter(function (l) { return l.id === c.after; })[0]);
+    var next = LEVELS[idx + 1];
+    var actions = [{ label: 'Nivele', cls: 'btn-ghost', onClick: showMap }];
+    if (next && next.world === c.world) actions.push({ label: 'Nivelul următor ▶', cls: 'btn-primary', onClick: function () { openLevel(next); } });
+    showModal({
+      art: '<div class="modal-chest modal-emoji" aria-hidden="true">🔍</div>',
+      title: c.name + ' e rezolvat!',
+      body: '<p>Ai rezolvat toate sarcinile ' + (mistakes ? 'și ai găsit singur drumul cel bun.' : 'din prima! Ochi de detectiv!') +
+        ' Ai primit o dovadă pentru dosarul tău. 🔍</p>' +
+        (next && next.world === c.world ? '<p class="world-done">Nivelul ' + levelNo(next) + ' s-a deschis!</p>' : ''),
+      actions: actions
+    });
+  }
+
+  function heading(text) {
+    var h = document.createElement('h3');
+    h.className = 'ch-h';
+    h.textContent = text;
+    return h;
+  }
+
+  function button(label, cls, onClick) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn ' + cls;
+    b.innerHTML = label;
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  // desenul mic dintr-o variantă de răspuns (ca plicul cu desenul secret)
+  function drawingHtml(rows) {
+    var cols = rows[0].length;
+    var out = '<span class="env-grid ch-drawing" style="grid-template-columns:repeat(' + cols + ', 1fr)">';
+    rows.forEach(function (row) {
+      row.split('').forEach(function (ch) { out += '<i class="' + (ch === 'S' ? 'on start' : ch === 'D' ? 'on' : '') + '"></i>'; });
+    });
+    return out + '</span>';
+  }
+
+  var TASKS = {
+    pick: function (t, left, right) {
+      left.appendChild(heading('Programul robotului desenator'));
+      left.appendChild(staticProgram(Engine.fromCompact(t.program)));
+      right.appendChild(heading('Ce desen iese?'));
+      var opts = document.createElement('div');
+      opts.className = 'ch-options';
+      t.options.forEach(function (o, k) {
+        var b = button(drawingHtml(o) + '<span>Desenul ' + String.fromCharCode(65 + k) + '</span>', 'btn-soft ch-option', function () {
+          if (opts.classList.contains('locked')) return;
+          if (k === t.answer) {
+            qsa('#ch-body .ch-option.wrong').forEach(function (x) { x.classList.remove('wrong'); });
+            b.classList.add('right');
+            opts.classList.add('locked');
+            taskSolved('Exact! Robotul face exact ce scrie în program. 🎨');
+          } else {
+            b.classList.remove('wrong'); void b.offsetWidth; b.classList.add('wrong');
+            chMistake(CH_HINTS.pick);
+          }
+        });
+        opts.appendChild(b);
+      });
+      right.appendChild(opts);
+    },
+
+    bug: function (t, left, right) {
+      var mb = miniBoard(left, t.grid);
+      var program = Engine.fromCompact(t.program);
+      var field = t.fix.field;
+      right.appendChild(heading(field === 'n' ? 'Atinge bucla cu numărul greșit' : 'Atinge blocul greșit'));
+      var ws = staticProgram(program);
+      ws.classList.add('pickable');
+      right.appendChild(ws);
+      var fixBox = document.createElement('div');
+      fixBox.className = 'ch-fix';
+      var controls = document.createElement('div');
+      controls.className = 'ch-controls';
+      controls.appendChild(button('▶ Pornește programul', 'btn-go', function () {
+        if (chal.busy) return;
+        chRun(mb, program, function () { setChText('Ai văzut unde se încurcă? ' + t.q); }, right);
+      }));
+      right.appendChild(fixBox);
+      right.appendChild(controls);
+      var found = false;
+      ws.addEventListener('click', function (e) {
+        if (found || chal.busy) return;
+        var el = e.target.closest(field === 'n' ? '.blk.t-repeat' : field === 'cond' ? '.blk.t-if, .blk.t-ifElse' : '.blk:not(.container)');
+        if (!el) el = e.target.closest('.blk');
+        if (!el) return;
+        if (el.dataset.path !== JSON.stringify(t.wrong)) {
+          el.classList.remove('err'); void el.offsetWidth; el.classList.add('err');
+          chMistake(CH_HINTS.block);
+          return;
+        }
+        found = true;
+        qsa('#ch-body .static .err').forEach(function (x) { x.classList.remove('err'); });
+        el.classList.add('selected');
+        setChText('Ai găsit bug-ul! 🐞 Acum repară-l: cu ce îl înlocuiești?', 'good');
+        showFix(el);
+      });
+      function showFix(el) {
+        fixBox.innerHTML = '';
+        fixBox.appendChild(heading('Cu ce îl înlocuiești?'));
+        var row = document.createElement('div');
+        row.className = 'ch-fix-row';
+        t.fix.options.forEach(function (v) {
+          var label = field === 'type' ? Editor.META[v].icon + ' ' + Editor.META[v].label
+            : field === 'cond' ? Editor.CONDS[v] : '× ' + v;
+          row.appendChild(button(label, 'btn-soft', function () {
+            if (chal.busy) return;
+            var fixed = Engine.fromCompact(t.program);
+            nodeAt(fixed, t.wrong)[field] = v;
+            ws.replaceWith(ws = staticProgram(fixed));
+            chRun(mb, fixed, function (st) {
+              if (st.won) {
+                row.classList.add('locked');
+                taskSolved('Bug reparat! Eroul a ajuns la comoară. 🛠️');
+              } else {
+                chMistake(field === 'n' ? CH_HINTS.fixN : CH_HINTS.fix);
+                var back = staticProgram(program);
+                var sel = back.querySelector('[data-path=\'' + JSON.stringify(t.wrong) + '\']');
+                if (sel) sel.classList.add('selected');
+                ws.replaceWith(ws = back);
+              }
+            }, right);
+          }));
+        });
+        fixBox.appendChild(row);
+        fixBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    },
+
+    order: function (t, left, right) {
+      var mb = miniBoard(left, t.grid);
+      var cards = Engine.fromCompact(t.cards);
+      var placed = [];
+      right.appendChild(heading('Cartonașele amestecate'));
+      var pool = document.createElement('div');
+      pool.className = 'palette ch-pool';
+      right.appendChild(pool);
+      right.appendChild(heading('Programul tău'));
+      var progBox = document.createElement('div');
+      right.appendChild(progBox);
+      var controls = document.createElement('div');
+      controls.className = 'ch-controls';
+      var run = button('▶ Verifică', 'btn-go', function () {
+        if (chal.busy || placed.length < cards.length) return;
+        chRun(mb, placed, function (st) {
+          if (st.won) { pool.classList.add('locked'); progBox.classList.add('locked'); taskSolved('Ordinea e perfectă! Eroul a ajuns la comoară. 🎉'); }
+          else chMistake(CH_HINTS.order);
+        }, right);
+      });
+      controls.appendChild(run);
+      right.appendChild(controls);
+      function draw() {
+        pool.innerHTML = '';
+        cards.forEach(function (n) {
+          if (placed.indexOf(n) >= 0) return;
+          var b = staticBlock(n, []);
+          b.addEventListener('click', function () { if (chal.busy) return; placed.push(n); mb.reset(); draw(); });
+          pool.appendChild(b);
+        });
+        if (!pool.children.length) pool.innerHTML = '<span class="slot-empty">Ai pus toate cartonașele.</span>';
+        progBox.innerHTML = '';
+        var ws = staticProgram(placed);
+        ws.classList.add('pickable');
+        if (!placed.length) ws.querySelector('.slot').innerHTML = '<div class="slot-empty">Atinge cartonașele de sus, în ordinea bună</div>';
+        Array.prototype.forEach.call(ws.querySelectorAll('.blk'), function (el, i) {
+          el.addEventListener('click', function () { if (chal.busy) return; placed.splice(i, 1); mb.reset(); draw(); });
+        });
+        progBox.appendChild(ws);
+        run.disabled = placed.length < cards.length;
+      }
+      draw();
+    },
+
+    where: function (t, left, right) {
+      var mb = miniBoard(left, t.grid);
+      var program = Engine.fromCompact(t.program);
+      right.appendChild(heading('Programul'));
+      right.appendChild(staticProgram(program));
+      var end = Engine.runToEnd(program, mb.map, 1);
+      var done = false;
+      mb.board.classList.add('pickable');
+      mb.board.addEventListener('click', function (e) {
+        var cell = e.target.closest('.cell.path');
+        if (!cell || done || chal.busy) return;
+        var rc = cell.dataset.rc.split(',').map(Number);
+        if (rc[0] === end.r && rc[1] === end.c) {
+          done = true;
+          cell.classList.add('picked');
+          chRun(mb, program, function () {
+            mb.cell(end.r, end.c).classList.add('picked');
+            taskSolved('Exact acolo! Ai urmărit programul ca un adevărat detectiv. 🔍');
+          }, right);
+        } else {
+          cell.classList.remove('miss'); void cell.offsetWidth; cell.classList.add('miss');
+          chMistake(CH_HINTS.where);
+        }
+      });
+    },
+
+    build: function (t, left, right) {
+      var mb = miniBoard(left, t.grid, t.dictation);
+      if (t.dictation) {
+        var env = document.createElement('div');
+        env.className = 'envelope';
+        var model = t.grid.slice(1, -1).map(function (row) {
+          return row.slice(1, -1).replace(/[^SD]/g, '.');
+        });
+        env.innerHTML = '<span class="env-flap" aria-hidden="true">✉️</span>' +
+          '<div class="env-text"><b>Desenul secret al Bufniței</b><small>Punctul e locul de unde pornește creionul.</small></div>' + drawingHtml(model);
+        left.appendChild(env);
+      }
+      if (t.show) {
+        right.appendChild(heading('Programul lung al lui Bip (' + t.show.length + ' blocuri)'));
+        var long = staticProgram(Engine.fromCompact(t.show));
+        long.classList.add('compact');
+        right.appendChild(long);
+      }
+      right.appendChild(heading('Comenzi'));
+      var pal = document.createElement('div');
+      pal.className = 'palette';
+      right.appendChild(pal);
+      var head = document.createElement('div');
+      head.className = 'program-head';
+      head.innerHTML = '<h3 class="ch-h">Programul tău</h3><span class="block-count ch-count"></span>';
+      right.appendChild(head);
+      var ws = document.createElement('div');
+      ws.className = 'workspace';
+      right.appendChild(ws);
+      var count = head.querySelector('.ch-count');
+      var editor = Editor.create({
+        workspace: ws, palette: pal, blocks: t.blocks, maxBlocks: t.maxBlocks, program: [],
+        onChange: function () { if (!chal.busy) mb.reset(); },
+        onRender: function (n, max) { count.innerHTML = 'Blocuri: <b>' + n + '</b> din ' + max; count.classList.toggle('full', n >= max); },
+        onLimit: function () { setChText('Ai folosit toate blocurile. Poți scrie programul mai scurt, cu o buclă?', 'warn'); }
+      });
+      var controls = document.createElement('div');
+      controls.className = 'ch-controls';
+      controls.appendChild(button('▶ Pornește', 'btn-go', function () {
+        if (chal.busy) return;
+        var prog = editor.getProgram();
+        if (!prog.length) { setChText('Programul e gol. Atinge comenzile ca să le pui în program.', 'warn'); return; }
+        editor.setEnabled(false);
+        chRun(mb, prog, function (st) {
+          editor.setEnabled(true);
+          if (st.won) {
+            editor.setEnabled(false);
+            taskSolved(t.dictation ? 'Desenul e identic cu cel din plic! 🎨' : 'Același drum, cu mult mai puține blocuri. Ești un arhitect adevărat! 🏗️');
+            return;
+          }
+          if (t.dictation) {
+            (st.missing || []).forEach(function (p) { var el = mb.cell(p.r, p.c); if (el) el.classList.add('missing'); });
+            (st.extraCells || []).forEach(function (p) { var el = mb.cell(p.r, p.c); if (el) el.classList.add('extra'); });
+          }
+          chMistake(t.dictation && !st.failed ? CH_HINTS.draw : CH_HINTS.build);
+        }, right);
+      }));
+      controls.appendChild(button('Șterge tot', 'btn-ghost', function () { if (!chal.busy) editor.clear(); }));
+      right.appendChild(controls);
+    }
+  };
+
+  $('ch-back').addEventListener('click', function () { stopChallenge(); chal = null; showMap(); });
 
   // ================= Panou profesor =================
   // Se deschide doar din adresa site-ului cu #profesor la final; pe ecranul copiilor nu există buton.
@@ -2019,7 +2575,7 @@
     var body = $('kids-body');
     body.innerHTML = '';
     if (!names.length) {
-      body.innerHTML = '<tr><td colspan="8" class="empty">' + (Cloud.enabled
+      body.innerHTML = '<tr><td colspan="9" class="empty">' + (Cloud.enabled
         ? (staff.role === 'teacher' && !staff.classes.length ? 'Nu ai nicio clasă încă. Cere administratorului să te adauge la o clasă.'
           : classFilter === 'all' ? 'Încă nu a intrat niciun copil.' : 'Niciun copil în această clasă.')
         : 'Încă nu a intrat niciun copil pe acest calculator.') + '</td></tr>';
@@ -2036,6 +2592,7 @@
         '<td class="col-class cloud-only"></td>' +
         '<td>' + (best ? 'Nivelul ' + levelNo(best) + ' <small>(' + missionLabel(worldById(best.world)) + ', ' + done + ' terminate)</small>' : '—') + '</td>' +
         '<td>' + Store.totalStars(p) + '</td>' +
+        '<td class="col-cases">' + casesHtml(p) + '</td>' +
         '<td class="col-worlds"><div class="world-toggles"></div></td>' +
         '<td>' + formatDate(p.lastSeen) + '</td>' +
         '<td><button type="button" class="btn btn-ghost btn-sm del-kid" aria-label="Șterge profilul">🗑</button></td>';
@@ -2095,6 +2652,23 @@
     });
   }
 
+  // dosarele detectivului: rezolvat (și din câte greșeli) sau încă nu
+  function casesHtml(p) {
+    return CHALLENGES.map(function (c) {
+      var r = p.progress[c.id];
+      var title = c.name + (r ? ': rezolvat' + (r.blocks ? ', cu ' + r.blocks + (r.blocks === 1 ? ' greșeală' : ' greșeli') : ' din prima') : ': nerezolvat');
+      return '<span class="case' + (r ? ' ok' : '') + (r && r.blocks >= 3 ? ' hard' : '') + '" title="' + title + '">' +
+        c.number + (r ? ' ✓' + (r.blocks ? '<small>' + r.blocks + '</small>' : '') : '') + '</span>';
+    }).join('');
+  }
+
+  function casesText(p) {
+    return CHALLENGES.map(function (c) {
+      var r = p.progress[c.id];
+      return '#' + c.number + ' ' + (r ? 'rezolvat (' + r.blocks + ' greșeli)' : '—');
+    }).join(', ');
+  }
+
   function bulkWorld(worldId, unlocked) {
     var count = sortedNames(teacherData).filter(function (n) { return !Cloud.enabled || inFilter(teacherData[n]); }).length;
     teacherAction(Teacher.setWorld(null, worldId, unlocked, Cloud.enabled ? filterClassId() : null),
@@ -2127,11 +2701,11 @@
 
   $('t-export-csv').addEventListener('click', function () {
     var all = teacherData;
-    var rows = [['Copil', 'Clasa', 'Nivel atins', 'Nivele terminate', 'Stele', 'Misiuni deschise', 'Ultima activitate']];
+    var rows = [['Copil', 'Clasa', 'Nivel atins', 'Nivele terminate', 'Stele', 'Dosare (Misiunea 4)', 'Misiuni deschise', 'Ultima activitate']];
     sortedNames(all).filter(function (n) { return !Cloud.enabled || inFilter(all[n]); }).forEach(function (n) {
       var p = all[n];
       var best = highestLevel(p);
-      rows.push([n, className(p.classId), best ? levelNo(best) : 0, doneCount(p), Store.totalStars(p),
+      rows.push([n, className(p.classId), best ? levelNo(best) : 0, doneCount(p), Store.totalStars(p), casesText(p),
         p.worlds.map(function (id) { var w = worldById(id); return w ? w.number : id; }).join(' '), formatDate(p.lastSeen)]);
     });
     var csv = '﻿' + rows.map(function (r) { return r.map(csvCell).join(';'); }).join('\r\n');

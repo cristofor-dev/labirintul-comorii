@@ -9,9 +9,9 @@
     repeatUntil: 'Repetă până la comoară'
   };
   var VAGUE = { vSquare: 'un pătrat', vRoof: 'un acoperiș', vDoor: 'o ușă', vHouse: 'o casă cu ușă și soare', vOwl: 'o bufniță' };
-  var COND_LABELS = { front: 'în față', left: 'la stânga', right: 'la dreapta' };
-  // celula verificată de fiecare condiție, relativ la direcția (dx, dy)
-  var COND_CELL = { front: 'harta[y + dy][x + dx]', left: 'harta[y - dx][x + dy]', right: 'harta[y + dx][x - dy]' };
+  var COND_LABELS = { up: 'sus', right: 'la dreapta', down: 'jos', left: 'la stânga' };
+  // pătrățelul verificat de fiecare condiție
+  var COND_CELL = { up: 'x, y - 1', right: 'x + 1, y', down: 'x, y + 1', left: 'x - 1, y' };
   var DIRS = [
     { v: '0, -1', name: 'în sus' }, { v: '1, 0', name: 'spre dreapta' },
     { v: '0, 1', name: 'în jos' }, { v: '-1, 0', name: 'spre stânga' }
@@ -77,7 +77,7 @@
       case 'if':
       case 'ifElse':
         add(out, depth, [C('Dacă e drum ' + COND_LABELS[node.cond])], id);
-        add(out, depth, [K('if'), T(' ' + COND_CELL[node.cond] + ' != '), ['str', '"#"'], T(':')], id);
+        add(out, depth, [K('if'), T(' e_drum(' + COND_CELL[node.cond] + '):')], id);
         body(node.body, depth + 1, loopDepth, out);
         if (node.type === 'ifElse') {
           add(out, depth, [K('else'), T(':')], id);
@@ -92,8 +92,7 @@
     var used = Engine.usedTypes(program);
     // direcția (dx, dy) apare dacă nivelul folosește „Înainte” / rotiri, chiar înainte de primul bloc
     var levelBlocks = (ctx && ctx.blocks) || [];
-    var relative = used.forward || used.turnLeft || used.turnRight || used.if || used.ifElse ||
-      levelBlocks.indexOf('forward') >= 0;
+    var relative = used.forward || used.turnLeft || used.turnRight || levelBlocks.indexOf('forward') >= 0;
     var out = [];
     if (ctx && ctx.map) {
       var s = ctx.map.start, t = ctx.map.treasure;
@@ -112,6 +111,10 @@
         add(out, 0, [T('harta = [')]);
         ctx.grid.forEach(function (row) { add(out, 1, [['str', '"' + row + '"'], T(',')]); });
         add(out, 0, [T(']')]);
+        add(out, 0, []);
+        add(out, 0, [C('drum = nu e zid, bolovan, lavă, apă, poartă sau comoară falsă')]);
+        add(out, 0, [K('def'), T(' e_drum(x, y):')]);
+        add(out, 1, [K('return'), T(' harta[y][x] '), K('not in'), T(' '), ['str', '"#PLAFU"']]);
       }
       add(out, 0, []);
     }

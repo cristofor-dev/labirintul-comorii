@@ -76,16 +76,14 @@
     return st;
   }
 
-  function lookDir(st, cond) {
-    if (cond === 'left') return (st.dir + 3) % 4;
-    if (cond === 'right') return (st.dir + 1) % 4;
-    return st.dir;
-  }
-
+  // „Dacă e drum ⬆/➡/⬇/⬅”: condițiile privesc în cele 4 direcții ale hărții (eroul nu se rotește).
+  // Drum = un pătrățel pe care poți călca fără să pățești ceva: nu zid, bolovan, lavă, apă, pod prăbușit
+  // sau comoară falsă; poarta e drum doar dacă ai cheia.
   function pathAhead(st, cond) {
-    var d = lookDir(st, cond);
+    var d = ABS_DIR[cond] !== undefined ? ABS_DIR[cond] : st.dir;
     var r = st.r + DR[d], c = st.c + DC[d], ch = cellAt(st, r, c);
-    return !BLOCKED[ch] && ch !== 'U' && !HAZARDS[ch] && ch !== 'hole';
+    if (ch === 'U') return st.keys > 0;
+    return !BLOCKED[ch] && !HAZARDS[ch] && ch !== 'hole';
   }
 
   function tick(st) {
@@ -263,13 +261,13 @@
     var node = { id: newId(), type: type };
     if (type === 'repeat') { node.n = 3; node.body = []; }
     if (type === 'repeatUntil') node.body = [];
-    if (type === 'if') { node.cond = 'front'; node.body = []; }
-    if (type === 'ifElse') { node.cond = 'front'; node.body = []; node.else = []; }
+    if (type === 'if') { node.cond = 'right'; node.body = []; }
+    if (type === 'ifElse') { node.cond = 'right'; node.body = []; node.else = []; }
     return node;
   }
 
   // Format compact folosit pentru soluțiile de referință din levels.js:
-  // ['forward'], ['repeat', 3, [...]], ['repeatUntil', [...]], ['if', 'left', [...]], ['ifElse', 'front', [...], [...]]
+  // ['forward'], ['repeat', 3, [...]], ['repeatUntil', [...]], ['if', 'down', [...]], ['ifElse', 'right', [...], [...]]
   function fromCompact(list) {
     return list.map(function (item) {
       var node = makeNode(item[0]);
@@ -310,7 +308,7 @@
 
   var api = {
     DR: DR, DC: DC, CONTAINERS: CONTAINERS, VAGUE: VAGUE, STEP_LIMIT: STEP_LIMIT, judge: judge,
-    parseGrid: parseGrid, isOpen: isOpen, cellAt: cellAt, INK: INK, hazardAt: hazardAt, newState: newState, run: runList,
+    pathAhead: pathAhead, parseGrid: parseGrid, isOpen: isOpen, cellAt: cellAt, INK: INK, hazardAt: hazardAt, newState: newState, run: runList,
     countBlocks: countBlocks, usedTypes: usedTypes, makeNode: makeNode,
     fromCompact: fromCompact, runToEnd: runToEnd
   };

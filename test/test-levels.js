@@ -42,16 +42,16 @@ var bump = Engine.runToEnd(Engine.fromCompact([['up']]), map1, 1);
 if (bump.failed !== 'bump') { failures++; console.log('  ✗ lovirea de zid nu e detectată'); }
 var short = Engine.runToEnd(Engine.fromCompact([['right']]), map1, 1);
 if (short.failed !== 'ended') { failures++; console.log('  ✗ programul scurt nu e detectat'); }
-var loop = Engine.runToEnd(Engine.fromCompact([['repeatUntil', [['turnLeft']]]]), map1, 1);
+var loop = Engine.runToEnd(Engine.fromCompact([['repeatUntil', [['if', 'up', [['up']]]]]]), map1, 1);
 if (loop.failed !== 'limit') { failures++; console.log('  ✗ bucla infinită nu e oprită'); }
 var empty = Engine.runToEnd(Engine.fromCompact([['repeatUntil', []]]), map1, 1);
 if (empty.failed !== 'limit') { failures++; console.log('  ✗ bucla goală nu e oprită'); }
 
 // Obstacolele: în lavă/apă cazi, de bolovan te lovești, pe pod treci.
 var field = Engine.parseGrid(['#####', '#SLT#', '#PB.#', '#####']);
-var lava = Engine.runToEnd(Engine.fromCompact([['forward']]), field, 1);
+var lava = Engine.runToEnd(Engine.fromCompact([['right']]), field, 1);
 if (lava.failed !== 'hazard' || lava.hazard !== 'lava') { failures++; console.log('  ✗ căderea în lavă nu e detectată'); }
-var rock = Engine.runToEnd(Engine.fromCompact([['turnRight'], ['forward']]), field, 1);
+var rock = Engine.runToEnd(Engine.fromCompact([['down']]), field, 1);
 if (rock.failed !== 'bump' || rock.bumped !== 'P') { failures++; console.log('  ✗ lovirea de bolovan nu e detectată'); }
 var bridge = Engine.runToEnd(Engine.fromCompact([['right'], ['down'], ['right'], ['up']]),
   Engine.parseGrid(['#####', '#SAT#', '#.B.#', '#####']), 1);
@@ -112,8 +112,78 @@ check('comoara falsă', ['#####', '#SFT#', '#####'], [['right']], { failed: 'haz
 check('culoarea greșită', ['######', '#SDE.#', '######'], [['right'], ['right']], { failed: 'stray' });
 check('găleata de vopsea', ['######', '#SQE.#', '######'], [['right'], ['right']], { won: true });
 
+// „Dacă e drum”: zidul, apa, lava și comoara falsă nu sunt drum; poarta e drum doar cu cheia.
+function look(grid, cond, want, keys) {
+  var st = Engine.newState(Engine.parseGrid(grid), 1);
+  st.keys = keys || 0;
+  if (Engine.pathAhead(st, cond) !== want) { failures++; console.log('  ✗ Dacă e drum ' + cond + ' pe ' + grid.join('/') + ' ≠ ' + want); }
+}
+look(['###', '#S.', '###'], 'right', true);
+look(['###', '#S#', '###'], 'right', false);
+look(['#.#', '#S#', '###'], 'up', true);
+look(['###', '#S#', '#A#'], 'down', false);
+look(['###', 'LS#', '###'], 'left', false);
+look(['###', '#SF', '###'], 'right', false);
+look(['###', '#SM', '###'], 'right', true);
+look(['###', '#SU', '###'], 'right', false);
+look(['###', '#SU', '###'], 'right', true, 1);
+
+// Dosarele detectivului: fiecare sarcină are exact răspunsul pe care îl așteaptă jocul.
+function nodeAt(list, path) {
+  var node = list[path[0]];
+  for (var i = 1; i < path.length; i += 2) node = node[path[i]][path[i + 1]];
+  return node;
+}
+// prog: în format compact sau deja ca blocuri
+function wins(prog, grid, dictation) {
+  var map = Engine.parseGrid(grid);
+  map.dictation = !!dictation;
+  return Engine.runToEnd(Array.isArray(prog[0]) ? Engine.fromCompact(prog) : prog, map, 1);
+}
+function frame(rows) {
+  var w = rows[0].length + 2, edge = new Array(w + 1).join('#');
+  return [edge].concat(rows.map(function (r) { return '#' + r + '#'; }), [edge]);
+}
+var levelIds = Levels.LEVELS.map(function (l) { return l.id; });
+Levels.CHALLENGES.forEach(function (ch) {
+  function bad(i, msg) { failures++; console.log('  ✗ ' + ch.name + ', sarcina ' + (i + 1) + ': ' + msg); }
+  if (levelIds.indexOf(ch.id) >= 0) bad(-1, 'id-ul e folosit și de un nivel');
+  var after = Levels.LEVELS.filter(function (l) { return l.id === ch.after; })[0];
+  if (!after || after.world !== ch.world) bad(-1, 'nivelul dinainte nu e în misiune');
+  ch.tasks.forEach(function (t, i) {
+    if (t.type === 'pick') {
+      t.options.forEach(function (o, k) {
+        var won = wins(t.program, frame(o), true).won;
+        if (won !== (k === t.answer)) bad(i, 'desenul ' + (k + 1) + (won ? ' iese și el' : ' nu iese'));
+      });
+    } else if (t.type === 'bug') {
+      if (wins(t.program, t.grid).won) bad(i, 'programul cu bug ajunge la comoară');
+      t.fix.options.forEach(function (v) {
+        var p = Engine.fromCompact(t.program);
+        nodeAt(p, t.wrong)[t.fix.field] = v;
+        var won = wins(p, t.grid).won;
+        if (won !== (v === t.fix.answer)) bad(i, 'reparația ' + v + (won ? ' merge și ea' : ' nu merge'));
+      });
+    } else if (t.type === 'order') {
+      if (!wins(t.solution, t.grid).won) bad(i, 'ordinea bună nu ajunge la comoară');
+      if (wins(t.cards, t.grid).won) bad(i, 'cartonașele sunt deja în ordine');
+      if (JSON.stringify(t.cards.map(String).sort()) !== JSON.stringify(t.solution.map(String).sort())) bad(i, 'alte cartonașe decât soluția');
+    } else if (t.type === 'where') {
+      var res = wins(t.program, t.grid);
+      if (res.failed !== 'ended') bad(i, 'programul nu se termină liniștit (' + res.failed + ')');
+    } else if (t.type === 'build') {
+      var sol = Engine.fromCompact(t.solution);
+      if (!wins(t.solution, t.grid, t.dictation).won) bad(i, 'soluția nu merge');
+      if (Engine.countBlocks(sol) > t.maxBlocks) bad(i, 'soluția are prea multe blocuri');
+      Object.keys(Engine.usedTypes(sol)).forEach(function (x) { if (t.blocks.indexOf(x) < 0) bad(i, 'bloc nepermis ' + x); });
+      if (t.show && !wins(t.show, t.grid).won) bad(i, 'programul lung nu merge');
+      if (t.show && t.show.length <= t.maxBlocks) bad(i, 'programul lung încape deja');
+    } else bad(i, 'tip necunoscut ' + t.type);
+  });
+});
+
 if (failures) {
   console.log('\n' + failures + ' probleme.');
   process.exit(1);
 }
-console.log('Toate cele ' + Levels.LEVELS.length + ' nivele au soluție validă. ✓');
+console.log('Toate cele ' + Levels.LEVELS.length + ' nivele și ' + Levels.CHALLENGES.length + ' dosare au soluție validă. ✓');
