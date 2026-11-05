@@ -35,16 +35,19 @@ Levels.LEVELS.forEach(function (level) {
   level.maps.forEach(function (m, i) {
     // gheața, portalurile și săgețile magice mută eroul singure, iar porțile țin minte cheia;
     // codul Python arată doar pașii programului
-    if (/[IOU<>^v]/.test(m.grid.join(''))) return;
-    var ctx = { map: Engine.parseGrid(m.grid), grid: m.grid, dir: m.dir };
-    var code = Python.toText(Engine.fromCompact(level.solution), ctx);
-    var out;
-    try {
-      out = execFileSync('python3', ['-I', '-c', RUNNER, m.grid.join('\n')], { input: code, encoding: 'utf8' }).trim();
-    } catch (e) {
-      out = 'EROARE: ' + (e.stderr || e.message);
-    }
-    if (out !== 'COMOARA') { failures++; console.log('  ✗ Nivelul ' + level.id + ' harta ' + (i + 1) + ': ' + out + '\n' + code); }
+    (m.variants || [undefined]).forEach(function (v) {
+      var grid = v ? Engine.fillGrid(m.grid, v) : m.grid;
+      if (/[IOU<>^v]/.test(grid.join(''))) return;
+      var ctx = { map: Engine.parseGrid(grid), grid: grid, dir: m.dir };
+      var code = Python.toText(Engine.fromCompact(level.solution), ctx);
+      var out;
+      try {
+        out = execFileSync('python3', ['-I', '-c', RUNNER, grid.join('\n')], { input: code, encoding: 'utf8', timeout: 5000 }).trim();
+      } catch (e) {
+        out = 'EROARE: ' + (e.stderr || e.message);
+      }
+      if (out !== 'COMOARA') { failures++; console.log('  ✗ Nivelul ' + level.id + ' harta ' + (i + 1) + (v ? ' varianta ' + v : '') + ': ' + out + '\n' + code); }
+    });
   });
 });
 

@@ -6,7 +6,7 @@
   var LABELS = {
     up: 'Sus', down: 'Jos', left: 'Stânga', right: 'Dreapta',
     forward: 'Înainte', turnLeft: 'Rotește stânga', turnRight: 'Rotește dreapta',
-    repeatUntil: 'Repetă până la comoară'
+    repeatUntil: 'Repetă până la comoară', talk: 'Vorbește', fix: 'Repară'
   };
   var VAGUE = { vSquare: 'un pătrat', vRoof: 'un acoperiș', vDoor: 'o ușă', vHouse: 'o casă cu ușă și soare', vOwl: 'o bufniță' };
   var COND_LABELS = { up: 'sus', right: 'la dreapta', down: 'jos', left: 'la stânga' };
@@ -59,6 +59,8 @@
         add(out, depth, [C(LABELS.turnRight)], id);
         add(out, depth, [T('dx, dy = -dy, dx')], id);
         break;
+      case 'talk': add(out, depth, [C(LABELS.talk)], id); add(out, depth, [T('vorbeste()')], id); break;
+      case 'fix': add(out, depth, [C(LABELS.fix)], id); add(out, depth, [T('repara()')], id); break;
       case 'repeat':
         var v = LOOP_VARS[loopDepth] || 'x' + loopDepth;
         add(out, depth, [C('Repetă ' + node.n + ' ori')], id);
@@ -101,6 +103,7 @@
         add(out, 0, [C('Atenție: gheața, portalurile și săgețile magice mută eroul singure;')]);
         add(out, 0, [C('codul de mai jos arată doar pașii pe care îi faci tu.')]);
       }
+      if (ctx.grid && /\?/.test(ctx.grid.join(''))) add(out, 0, [C('? = căsuță ascunsă: aflăm ce e acolo abia când ajungem lângă ea')]);
       add(out, 0, [T('x, y = '), N(s.c), T(', '), N(s.r)]);
       if (relative) {
         var d = DIRS[ctx.dir || 0];
@@ -112,10 +115,16 @@
         ctx.grid.forEach(function (row) { add(out, 1, [['str', '"' + row + '"'], T(',')]); });
         add(out, 0, [T(']')]);
         add(out, 0, []);
-        add(out, 0, [C('drum = nu e zid, bolovan, lavă, apă, poartă sau comoară falsă')]);
+        add(out, 0, [C('drum = nu e zid, bolovan, lavă, apă, poartă, comoară falsă, paznic sau pod rupt')]);
+        // după „Vorbește” și „Repară”, căsuța de alături devine drum și în cod
+        var clears = used.talk || used.fix;
+        if (clears) add(out, 0, [T('liber = set()')]);
         add(out, 0, [K('def'), T(' e_drum(x, y):')]);
-        add(out, 1, [K('return'), T(' harta[y][x] '), K('not in'), T(' '), ['str', '"#PLAFU"']]);
+        add(out, 1, [K('return'), T(clears ? ' (x, y) in liber or harta[y][x] ' : ' harta[y][x] '), K('not in'), T(' '), ['str', '"#PLAFUGR"']]);
       }
+      var look = used.if || used.ifElse;
+      if (used.talk) actionDef(out, 'vorbeste', 'G', 'paznicul de alături se dă la o parte', look);
+      if (used.fix) actionDef(out, 'repara', 'R', 'podul rupt de alături devine drum', look);
       add(out, 0, []);
     }
     if (!program.length) {
@@ -124,6 +133,16 @@
     }
     program.forEach(function (node) { stmt(node, 0, 0, out); });
     return out;
+  }
+
+  function actionDef(out, name, ch, note, look) {
+    add(out, 0, []);
+    add(out, 0, [K('def'), T(' ' + name + '():')]);
+    add(out, 1, [C(note)]);
+    if (!look) { add(out, 1, [K('pass')]); return; }
+    add(out, 1, [K('for'), T(' vx, vy '), K('in'), T(' [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]:')]);
+    add(out, 2, [K('if'), T(' harta[vy][vx] == '), ['str', '"' + ch + '"'], T(':')]);
+    add(out, 3, [T('liber.add((vx, vy))')]);
   }
 
   function repeat(s, n) { var r = ''; for (var i = 0; i < n; i++) r += s; return r; }

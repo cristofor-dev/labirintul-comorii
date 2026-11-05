@@ -15,6 +15,8 @@
     repeatUntil: { icon: '💎', label: 'Repetă până la comoară', cat: 'loop' },
     if:          { icon: '❓', label: 'Dacă e drum', cat: 'cond' },
     ifElse:      { icon: '❓', label: 'Dacă e drum … altfel', cat: 'cond' },
+    talk:        { icon: '🗣️', label: 'Vorbește', cat: 'act' },
+    fix:         { icon: '🔨', label: 'Repară', cat: 'act' },
     // instrucțiunile vagi ale robotului desenator (Misiunea 1)
     vSquare:     { icon: '◻️', label: 'Desenează un pătrat', cat: 'vague' },
     vRoof:       { icon: '🔺', label: 'Fă un acoperiș', cat: 'vague' },

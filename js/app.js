@@ -300,20 +300,7 @@
     var idx = LEVELS.indexOf(level);
     var prev = LEVELS[idx - 1];
     if (!prev || prev.world !== level.world) return true;
-    var gate = challengeAfter(prev.id); // nivelul de după un dosar se deschide doar după ce dosarul e rezolvat
-    if (gate && !profile.progress[gate.id]) return false;
     return !!profile.progress[prev.id];
-  }
-
-  // dosarul detectivului care stă după un nivel (Misiunea 4), dacă există
-  function challengeAfter(levelId) {
-    return CHALLENGES.filter(function (c) { return c.after === levelId; })[0] || null;
-  }
-
-  function challengeUnlocked(c) {
-    if (!worldAvailable(c.world)) return false;
-    if (preview) return true;
-    return Store.isWorldUnlocked(profile, c.world) && !!profile.progress[c.after];
   }
 
   // Harta Academiei: Academia sus, apoi un drum prin toate misiunile din carnet (insignele).
@@ -509,21 +496,6 @@
         (isNext ? '<span class="lvl-tag">Joacă</span>' : '');
       b.addEventListener('click', function () { openLevel(l); });
       grid.appendChild(b);
-      var c = challengeAfter(l.id);
-      if (!c) return;
-      var open = challengeUnlocked(c), solved = !!profile.progress[c.id];
-      var cNext = open && !solved && current;
-      if (cNext) current = false;
-      var cb = document.createElement('button');
-      cb.type = 'button';
-      cb.className = 'level-btn challenge' + (solved ? ' done' : '') + (open ? '' : ' locked') + (cNext ? ' next' : '');
-      cb.disabled = !open;
-      cb.innerHTML = '<span class="lvl-num">' + (open ? '🗂️' : '🔒') + '</span>' +
-        '<span class="lvl-name">' + c.name + '</span><span class="lvl-topic">' + c.topic + '</span>' +
-        '<span class="lvl-case">' + (solved ? '🔍 Rezolvat' : 'Provocare') + '</span>' +
-        (cNext ? '<span class="lvl-tag">Rezolvă</span>' : '');
-      cb.addEventListener('click', function () { openChallenge(c); });
-      grid.appendChild(cb);
     });
     box.appendChild(sec);
   }
@@ -654,7 +626,7 @@
     if (Object.keys(Engine.usedTypes(saved)).some(function (t) { return level.blocks.indexOf(t) < 0; })) saved = [];
     // desenul dictat cu runda 1: întâi o singură instrucțiune vagă (până când nivelul e terminat o dată)
     var round = level.round1 && !profile.progress[level.id] && !preview ? 1 : 2;
-    game = { level: level, mapIndex: 0, map: null, editor: null, run: null, round: round };
+    game = { level: level, mapIndex: 0, map: null, editor: null, run: null, round: round, solved: {}, lastVariant: null, forceVariant: null };
     mapWorld = level.world; // „← Hartă” din joc te duce înapoi la misiunea nivelului
     var world = worldById(level.world);
     $('game-title').textContent = 'Nivelul ' + levelNo(level) + ' · ' + level.name;
@@ -846,12 +818,40 @@
   function loadMap(i) {
     game.mapIndex = i;
     var m = game.level.maps[i];
-    game.map = Engine.parseGrid(m.grid);
-    game.map.dictation = !!game.level.dictation;
+    useVariant(m.variants ? m.variants[0] : undefined);
     game.dir = m.dir;
     renderMapTabs();
     renderBoard();
     if (game.editor) renderPython(game.editor.getProgram());
+  }
+
+  // aceeași hartă, cu altceva sub căsuțele „?” (fără variante, harta e cea din levels.js)
+  function useVariant(v) {
+    game.map = Engine.parseGrid(game.level.maps[game.mapIndex].grid, v);
+    game.map.dictation = !!game.level.dictation;
+  }
+
+  // La fiecare rulare se alege altă variantă, ca programul să aibă nevoie de „Dacă”.
+  function pickVariant() {
+    var list = game.level.maps[game.mapIndex].variants;
+    if (!list) return;
+    var v = game.forceVariant;
+    game.forceVariant = null;
+    if (!v) {
+      var rest = list.filter(function (x) { return x !== game.lastVariant; });
+      v = rest[Math.floor(Math.random() * rest.length)];
+    }
+    game.lastVariant = v;
+    useVariant(v);
+    game.tilesDirty = true; // tabla se redesenează cu noua variantă
+  }
+
+  // prima variantă pe care programul n-ar ajunge la comoară; așa nu se câștigă din noroc
+  function unluckyVariant(prog) {
+    var m = game.level.maps[game.mapIndex];
+    return (m.variants || []).filter(function (v) {
+      return !Engine.runToEnd(prog, Engine.parseGrid(m.grid, v), m.dir).won;
+    })[0] || null;
   }
 
   function cellSize() {
@@ -864,11 +864,12 @@
   // obstacolele de pe hartă (vezi levels.js)
   var CELL_CLASS = { P: ' rock', L: ' lava', A: ' water', B: ' bridge', D: ' ink', E: ' ink ink2', Q: ' pot',
     K: ' key', U: ' gate', M: ' coin', O: ' portal', I: ' ice', C: ' crumbly', F: ' treasure fake',
+    N: ' npc', W: ' npc', G: ' npc guard', R: ' broken',
     '>': ' push', '<': ' push', '^': ' push', v: ' push' };
   // ce se vede pe pătrățelele cu surprize
   var TILE_HTML = {
     K: '<span class="tile">🔑</span>', M: '<span class="tile">🪙</span>', O: '<span class="tile">🌀</span>',
-    Q: '<span class="tile">🪣</span>', U: '<span class="tile">🔒</span>',
+    Q: '<span class="tile">🪣</span>', U: '<span class="tile">🔒</span>', R: '<span class="tile">🕳️</span>',
     F: '<img src="assets/comoara.svg" alt="Comoara?"><span class="eyes">👀</span>',
     '>': '<span class="tile arrow" style="--rot:0deg">➜</span>', v: '<span class="tile arrow" style="--rot:90deg">➜</span>',
     '<': '<span class="tile arrow" style="--rot:180deg">➜</span>', '^': '<span class="tile arrow" style="--rot:-90deg">➜</span>'
@@ -881,8 +882,47 @@
     var board = $('board');
     board.innerHTML = '';
     fillBoard(board, map, size, game.level.colors).id = 'hero';
+    drawNpcs();
     renderEnvelope();
     resetHero();
+  }
+
+  function npcAt(r, c) {
+    return (game.level.npcs || []).filter(function (n) { return n.at[0] === r && n.at[1] === c; })[0] || null;
+  }
+
+  // personajele nivelului stau pe căsuțele lor de pe hartă
+  function drawNpcs() {
+    qsa('#board .cell.npc').forEach(function (cell) {
+      var rc = cell.dataset.rc.split(',').map(Number);
+      var n = npcAt(rc[0], rc[1]);
+      cell.innerHTML = '<span class="tile">' + (n ? n.who : '🧑') + '</span>';
+      if (n) cell.title = n.name;
+    });
+  }
+
+  // „ceața”: căsuțele „?” se văd abia când eroul ajunge lângă ele
+  function fogBoard() {
+    qsa('#board .fog').forEach(function (f) { f.remove(); });
+    Object.keys(game.map.hidden || {}).forEach(function (k) {
+      var rc = k.split(',').map(Number);
+      var cell = cellEl(rc[0], rc[1]);
+      if (!cell) return;
+      var f = document.createElement('span');
+      f.className = 'fog';
+      f.textContent = '?';
+      cell.appendChild(f);
+    });
+  }
+
+  function revealAround(r, c) {
+    [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]].forEach(function (d) {
+      var cell = cellEl(r + d[0], c + d[1]);
+      var f = cell && cell.querySelector('.fog');
+      if (!f) return;
+      f.classList.add('gone');
+      setTimeout(function () { f.remove(); }, 300);
+    });
   }
 
   // pătrățelele hărții și eroul; folosită și de tabla mică din dosarele detectivului
@@ -940,9 +980,10 @@
     qsa('#board .doodle, #board .robot-say').forEach(function (d) { d.remove(); });
     $('envelope').classList.remove('opened');
     var hero = $('hero');
-    if (hero) hero.classList.remove('bump', 'happy', 'fall', 'fall-lava', 'fall-water', 'fall-hole', 'fall-mimic', 'pen2');
+    if (hero) hero.classList.remove('bump', 'happy', 'fall', 'fall-lava', 'fall-water', 'fall-hole', 'fall-mimic', 'fall-broken', 'pen2');
     placeHero(game.map.start.r, game.map.start.c, game.dir, true);
     markTrail(game.map.start.r, game.map.start.c);
+    fogBoard();
   }
 
   function markTrail(r, c, color) {
@@ -969,7 +1010,9 @@
       setGuide('Programul e gol. Atinge comenzile din stânga ca să le pui în program.', 'warn');
       return false;
     }
+    pickVariant();
     resetHero();
+    revealAround(game.map.start.r, game.map.start.c);
     game.bugId = null;
     game.selId = null;
     game.editor.select(null);
@@ -1010,8 +1053,14 @@
       placeHero(st.r, st.c, st.dir);
       markTrail(st.r, st.c, st.color);
       tileEffects(ev);
+      revealAround(st.r, st.c);
     } else if (ev.kind === 'teleport') {
       teleportHero(ev, st);
+      revealAround(st.r, st.c);
+    } else if (ev.kind === 'fix') {
+      repairBridge(ev);
+    } else if (ev.kind === 'noTarget') {
+      playBump();
     } else if (ev.kind === 'turn') {
       placeHero(st.r, st.c, st.dir);
     } else if (ev.kind === 'check' && ev.left !== undefined) {
@@ -1036,9 +1085,52 @@
       run.timer = setTimeout(finishRun, ev.kind === 'win' ? speed() + 150 : speed());
       return;
     }
+    // un personaj: programul așteaptă până când copilul răspunde
+    if (ev.meet || ev.kind === 'talk') {
+      var at = ev.kind === 'talk' ? ev : st;
+      run.paused = true;
+      clearTimeout(run.timer);
+      run.timer = setTimeout(function () { meet(at.r, at.c, run); }, speed());
+      return;
+    }
     // verificările buclelor trec mai repede decât pașii, ca să nu plictisească; alunecarea e mai rapidă
     var wait = ev.kind === 'slide' ? speed() * 0.6 : ev.kind !== 'check' ? speed() : speed() * (ev.result === undefined ? 0.3 : 0.7);
     if (run.auto) run.timer = setTimeout(stepOnce, wait);
+  }
+
+  function repairBridge(ev) {
+    var el = cellEl(ev.r, ev.c);
+    game.tilesDirty = true;
+    playDing(660);
+    if (!el) return;
+    el.classList.remove('broken');
+    el.classList.add('bridge');
+    el.innerHTML = '';
+  }
+
+  // Eroul a ajuns la un personaj: întrebare sau dosar, apoi programul continuă de unde a rămas.
+  function meet(r, c, run) {
+    if (!game || game.run !== run) return;
+    var key = r + ',' + c;
+    var npc = npcAt(r, c) || {};
+    function goOn() {
+      if (!game || game.run !== run) return;
+      game.solved[key] = true;
+      show('screen-game');
+      window.dispatchEvent(new Event('resize')); // tabla n-a putut măsura cât timp era ascunsă
+      var el = cellEl(r, c);
+      if (el) el.classList.add('taken');
+      game.tilesDirty = true;
+      playDing(880);
+      if (npc.clue) setGuide(npc.who + ' ' + npc.clue, 'good');
+      run.paused = false;
+      if (run.auto) run.timer = setTimeout(stepOnce, speed());
+    }
+    var dosar = npc.dosar && CHALLENGES.filter(function (x) { return x.id === npc.dosar; })[0];
+    if (game.solved[key] || (dosar && profile.progress[dosar.id])) goOn();
+    else if (dosar) openChallenge(dosar, npc, goOn);
+    else if (npc.task) openQuestion(npc, goOn);
+    else goOn();
   }
 
   function bumpHero(ev) {
@@ -1110,7 +1202,7 @@
     var hero = $('hero');
     clearTimeout(game.fallTimer);
     game.fallTimer = setTimeout(function () {
-      if (hazard === 'lava') playSizzle(); else if (hazard === 'water') playSplash(); else playBump();
+      if (hazard === 'lava') playSizzle(); else if (hazard === 'water' || hazard === 'broken') playSplash(); else playBump();
       hero.classList.add('fall', 'fall-' + hazard);
       var cell = document.querySelector('#board [data-rc="' + r + ',' + c + '"]');
       if (cell) cell.classList.add('splash');
@@ -1302,6 +1394,18 @@
       // lăsăm programul să se încheie (fără alți pași), ca să aflăm dacă mai avea ceva de făcut
       while (!run.gen.next().done) { /* doar marchează st.extra */ }
       $('hero').classList.add('happy');
+      var prog = game.editor.getProgram();
+      var unlucky = unluckyVariant(prog);
+      if (unlucky) {
+        var luck = 'Un detectiv nu se bazează pe noroc! 🔍 Căsuțele „?” pot ascunde și altceva.';
+        setGuide(luck, 'warn');
+        game.forceVariant = unlucky;
+        setTimeout(function () {
+          if (!game || game.run) return;
+          if (startRun()) { setGuide(luck, 'warn'); game.run.auto = true; stepOnce(); }
+        }, 1800);
+        return;
+      }
       if (game.mapIndex < game.level.maps.length - 1) {
         setGuide('Bravo! Acum încercăm același program pe harta ' + (game.mapIndex + 2) + '...', 'good');
         setTimeout(function () {
@@ -1325,7 +1429,16 @@
       vagueResult(st.vague);
       return;
     }
-    if (st.failed === 'bump') {
+    if (st.failed === 'noTarget') {
+      why = st.noTarget === 'talk' ? 'Nu e nimeni aici cu care să vorbești.' : 'Nu e nimic de reparat aici.';
+      setGuide(why + ' Privește ce e lângă erou.', 'bad');
+    } else if (st.failed === 'bump' && st.bumped === 'G') {
+      why = 'Paznicul nu l-a lăsat pe ' + heroName(profile) + ' să treacă.';
+      setGuide('Stai! Paznicul nu te lasă să treci așa. Uită-te la blocurile pe care le ai.', 'bad');
+    } else if (st.failed === 'hazard' && st.hazard === 'broken') {
+      why = heroName(profile) + ' a căzut prin podul rupt.';
+      setGuide('Pleosc! Podul e rupt. Uită-te la blocurile pe care le ai.', 'bad');
+    } else if (st.failed === 'bump') {
       var what = st.bumped === 'P' ? (game.map.drawing ? 'o pată de cerneală' : 'un bolovan') : st.bumped === 'U' ? 'poarta încuiată' : 'zid';
       why = heroName(profile) + ' s-a lovit de ' + what + '.';
       setGuide('Au! ' + heroName(profile) + ' s-a lovit de ' + what + '. Schimbă programul și încearcă din nou.', 'bad');
@@ -1408,6 +1521,7 @@
     var idx = LEVELS.indexOf(level);
     var next = LEVELS[idx + 1];
     var body = '<div class="big-stars">' + starsHtml(stars) + '</div>';
+    if (level.finale) body += '<p class="world-done">' + level.finale + '</p>';
     if (extra) {
       body += '<p>Ai ajuns, dar programul mai avea pași de făcut după aceea (repetări sau blocuri în plus). ' +
         'Poți lua 3 stele cu un program care se oprește exact la final. Încerci?</p>';
@@ -1423,10 +1537,6 @@
     if (next && next.world !== level.world &&
         (preview || !worldAvailable(next.world) || !Store.isWorldUnlocked(profile, next.world))) {
       body += '<p class="world-done">Ai terminat ' + mission + '! Ești un adevărat Erou Isteț! 🏆</p>';
-    } else if (challengeAfter(level.id) && !profile.progress[challengeAfter(level.id).id]) {
-      var gate = challengeAfter(level.id);
-      body += '<p class="world-done">Următorul nivel e păzit de ' + gate.name + '. Rezolvă provocarea ca să treci mai departe! 🗂️</p>';
-      actions.push({ label: gate.name + ' ▶', cls: 'btn-primary', onClick: function () { openChallenge(gate); } });
     } else if (next) {
       actions.push({ label: 'Nivelul următor ▶', cls: 'btn-primary', onClick: function () { openLevel(next); } });
     } else {
@@ -1444,6 +1554,7 @@
     audioCtx(); // pornește sunetul la click, altfel unele browsere (Safari) îl blochează
     if (!game.run && !startRun()) return;
     game.run.auto = true;
+    if (game.run.paused) return; // eroul a ajuns la un personaj
     clearTimeout(game.run.timer);
     stepOnce();
   });
@@ -1454,6 +1565,7 @@
       if (!startRun()) return;
     } else {
       game.run.auto = false;
+      if (game.run.paused) return;
       clearTimeout(game.run.timer);
     }
     stepOnce();
@@ -1509,10 +1621,11 @@
   });
 
   // ================= Dosarele detectivului (Misiunea 4) =================
-  // Între nivelele Misiunii 4 stau 3 dosare cu câte 3 sarcini care recapitulează misiunile de dinainte.
+  // În Misiunea 4, trei personaje dau pe drum câte un dosar cu 3 sarcini care recapitulează misiunile de dinainte.
+  // Tot pe acest ecran apar și întrebările personajelor (un dosar cu o singură sarcină, care nu se salvează).
   // Încercările sunt nelimitate; la o greșeală Bufnița dă un indiciu, niciodată răspunsul.
   // La final, dosarul se salvează ca un nivel (id 101–103) cu 0 stele și numărul de greșeli în „blocks”.
-  var chal = null; // { c, step, mistakes, mb, timer, busy }
+  var chal = null; // { c, step, mistakes, mb, timer, busy, npc, onDone }
 
   var CH_HINTS = {
     pick: 'Nu e acesta. Pune degetul pe punctul de start și urmărește programul pas cu pas, pe fiecare desen.',
@@ -1525,16 +1638,14 @@
     draw: 'Desenul nu seamănă încă cu cel din plic. Uită-te ce lipsește și ce e în plus.'
   };
 
-  function openChallenge(c) {
-    stopRun();
+  function openChallenge(c, npc, onDone) {
     stopChallenge();
-    mapWorld = c.world; // „← Nivele” te duce înapoi la misiune
-    chal = { c: c, step: 0, mistakes: 0 };
+    chal = { c: c, step: 0, mistakes: 0, npc: npc, onDone: onDone };
     document.documentElement.style.setProperty('--world', worldById(c.world).color);
     $('ch-title').textContent = c.name + ' · ' + c.topic;
     show('screen-challenge');
     renderChSteps();
-    setChText(c.intro + ' Rezolvă cele ' + c.tasks.length + ' sarcini ca să deschizi nivelul următor.');
+    setChText(npc.who + ' ' + npc.say + ' ' + c.intro + ' Rezolvă cele ' + c.tasks.length + ' sarcini ca să mergi mai departe.');
     var body = $('ch-body');
     body.className = 'ch-body ch-intro';
     body.innerHTML = '<div class="ch-folder" aria-hidden="true">🗂️</div>' +
@@ -1545,6 +1656,15 @@
     go.textContent = 'Deschide dosarul ▶';
     go.addEventListener('click', function () { renderTask(0); });
     body.appendChild(go);
+  }
+
+  // întrebarea unui personaj: un dosar mic, cu o singură sarcină
+  function openQuestion(npc, onDone) {
+    stopChallenge();
+    chal = { c: { name: npc.name, tasks: [npc.task], small: true }, step: 0, mistakes: 0, npc: npc, onDone: onDone };
+    $('ch-title').textContent = npc.who + ' ' + npc.name;
+    show('screen-challenge');
+    renderTask(0);
   }
 
   function stopChallenge() {
@@ -1559,6 +1679,7 @@
 
   function renderChSteps() {
     var box = $('ch-steps');
+    box.hidden = !!chal.c.small;
     box.innerHTML = chal.c.tasks.map(function (t, i) {
       return '<span class="ch-step' + (i < chal.step ? ' done' : i === chal.step ? ' on' : '') + '">' +
         (i < chal.step ? '✓' : i + 1) + '</span>';
@@ -1719,7 +1840,7 @@
     chal.busy = false;
     renderChSteps();
     var t = chal.c.tasks[i];
-    setChText(t.q);
+    setChText(chal.c.small ? chal.npc.say + ' ' + t.q : t.q);
     var body = $('ch-body');
     body.className = 'ch-body ch-' + t.type;
     body.innerHTML = '';
@@ -1742,7 +1863,7 @@
     var b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn btn-primary btn-big';
-    b.textContent = last ? 'Închide dosarul 🔍' : 'Sarcina următoare ▶';
+    b.textContent = chal.c.small ? 'Mai departe ▶' : last ? 'Închide dosarul 🔍' : 'Sarcina următoare ▶';
     b.addEventListener('click', function () { if (last) challengeSolved(); else renderTask(chal.step + 1); });
     next.appendChild(b);
     body.appendChild(next);
@@ -1750,27 +1871,28 @@
     b.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
+  function leaveChallenge() {
+    var onDone = chal.onDone;
+    chal = null;
+    onDone();
+  }
+
   function challengeSolved() {
     var c = chal.c, mistakes = chal.mistakes;
-    var first = !profile.progress[c.id];
-    if (first) {
+    if (c.small) { leaveChallenge(); return; }
+    if (!profile.progress[c.id]) {
       profile.progress[c.id] = { stars: 0, blocks: Math.min(mistakes, 1000), program: null, done: new Date().toISOString() };
       save();
       syncProfile();
     }
     chal.step = c.tasks.length;
     renderChSteps();
-    var idx = LEVELS.indexOf(LEVELS.filter(function (l) { return l.id === c.after; })[0]);
-    var next = LEVELS[idx + 1];
-    var actions = [{ label: 'Nivele', cls: 'btn-ghost', onClick: showMap }];
-    if (next && next.world === c.world) actions.push({ label: 'Nivelul următor ▶', cls: 'btn-primary', onClick: function () { openLevel(next); } });
     showModal({
       art: '<div class="modal-chest modal-emoji" aria-hidden="true">🔍</div>',
       title: c.name + ' e rezolvat!',
       body: '<p>Ai rezolvat toate sarcinile ' + (mistakes ? 'și ai găsit singur drumul cel bun.' : 'din prima! Ochi de detectiv!') +
-        ' Ai primit o dovadă pentru dosarul tău. 🔍</p>' +
-        (next && next.world === c.world ? '<p class="world-done">Nivelul ' + levelNo(next) + ' s-a deschis!</p>' : ''),
-      actions: actions
+        ' Ai primit o dovadă pentru dosarul tău. 🔍</p>',
+      actions: [{ label: 'Mai departe ▶', cls: 'btn-primary', onClick: leaveChallenge }]
     });
   }
 
@@ -1936,6 +2058,27 @@
       draw();
     },
 
+    quiz: function (t, left, right) {
+      var who = document.createElement('div');
+      who.className = 'ch-npc';
+      who.textContent = chal.npc.who;
+      left.appendChild(who);
+      t.options.forEach(function (text, i) {
+        var b = button(esc(text), 'btn-ghost ch-opt', function () {
+          if (b.parentNode.classList.contains('picked')) return;
+          if (i === t.answer) {
+            b.parentNode.classList.add('picked');
+            b.classList.add('right');
+            taskSolved('Corect, detective! 🔍');
+          } else {
+            b.classList.remove('miss'); void b.offsetWidth; b.classList.add('miss');
+            chMistake(t.hint);
+          }
+        });
+        right.appendChild(b);
+      });
+    },
+
     where: function (t, left, right) {
       var mb = miniBoard(left, t.grid);
       var program = Engine.fromCompact(t.program);
@@ -2024,7 +2167,16 @@
     }
   };
 
-  $('ch-back').addEventListener('click', function () { stopChallenge(); chal = null; showMap(); });
+  // renunță la întâlnire: rularea se oprește și eroul se întoarce la start
+  $('ch-back').addEventListener('click', function () {
+    stopChallenge();
+    chal = null;
+    stopRun();
+    show('screen-game');
+    window.dispatchEvent(new Event('resize'));
+    resetHero();
+    setGuide(levelHint());
+  });
 
   // ================= Panou profesor =================
   // Se deschide doar din adresa site-ului cu #profesor la final; pe ecranul copiilor nu există buton.

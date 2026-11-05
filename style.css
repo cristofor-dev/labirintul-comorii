@@ -488,6 +488,7 @@ img { display: block; }
 .blk.cat-turn { --c: var(--turn); }
 .blk.cat-loop { --c: var(--loop); }
 .blk.cat-cond { --c: var(--cond); }
+.blk.cat-act { --c: #ec4899; }
 .blk.cat-vague { --c: #64748b; }
 .blk.cat-vague .lbl { font-style: italic; }
 .blk .ico { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; background: rgba(255, 255, 255, .22); font-size: 1.15rem; line-height: 1; }
@@ -742,7 +743,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 .cell.treasure.shake img { animation: shake .5s; }
 .board.drawing .cell.rock::after { background: radial-gradient(circle at 40% 40%, #334155, #0f172a 70%); border-radius: 50% 40% 55% 45%; box-shadow: none; }
 .hero.pen2 .hero-body img { filter: drop-shadow(0 0 6px var(--ink2)) drop-shadow(0 4px 4px rgba(0, 0, 0, .3)); }
-.hero.fall-hole .hero-body img { filter: brightness(.4); }
+.hero.fall-hole .hero-body img, .hero.fall-broken .hero-body img { filter: brightness(.4); }
 .hero.fall-mimic .hero-body img { filter: drop-shadow(0 0 10px #a855f7) hue-rotate(200deg); }
 .lvl-icon { position: absolute; top: 8px; left: 10px; font-size: 1.05rem; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .15)); }
 .level-btn.locked .lvl-icon { filter: grayscale(1); opacity: .5; }
@@ -822,3 +823,21 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   .challenge { padding: 12px; }
   .ch-card { padding: 12px; }
 }
+
+/* Misiunea 4: personaje, poduri rupte și căsuțe ascunse */
+.cell.npc { background: #fff7ed; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--world) 45%, transparent); }
+.cell.npc.guard { background: #fee2e2; box-shadow: inset 0 0 0 2px #ef4444; }
+.cell.broken { background: radial-gradient(circle, #1e3a8a 0 40%, #3b82f6 75%); }
+.cell.broken .tile { font-size: calc(var(--cell) * .5); }
+.cell .fog {
+  position: absolute; inset: 0; z-index: 3; display: grid; place-items: center;
+  background: linear-gradient(145deg, #e0e7ff, #c7d2fe); color: #4338ca;
+  font-weight: 900; font-size: calc(var(--cell) * .5); line-height: 1;
+  box-shadow: inset 0 0 0 1px rgba(67, 56, 202, .25);
+  transition: opacity .3s, transform .3s var(--ease);
+}
+.cell .fog.gone { opacity: 0; transform: scale(1.3); }
+.ch-npc { font-size: 5.5rem; line-height: 1.1; text-align: center; }
+.ch-opt { width: 100%; justify-content: flex-start; text-align: left; white-space: normal; }
+.ch-opt.right { background: #dcfce7; border-color: #22c55e; color: #166534; }
+.ch-opt.miss { background: #fee2e2; border-color: #ef4444; animation: shake .35s; }

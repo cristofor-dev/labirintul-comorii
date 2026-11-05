@@ -21,7 +21,14 @@ Levels.LEVELS.forEach(function (level) {
   });
 
   level.maps.forEach(function (m, i) {
-    var map = Engine.parseGrid(m.grid);
+    (m.variants || [undefined]).forEach(function (v) { checkMap(level, program, m, i, v); });
+    if (m.variants) checkEncounters(level, program, m);
+  });
+  if (level.npcs) checkNpcs(level);
+});
+
+function checkMap(level, program, m, i, variant) {
+    var map = Engine.parseGrid(m.grid, variant);
     map.dictation = !!level.dictation;
     if (level.dictation && !map.drawing) fail(level, 'desenul dictat fără model');
     if (level.round1 && !Engine.VAGUE[level.round1]) fail(level, 'runda 1 fără instrucțiune vagă');
@@ -32,7 +39,98 @@ Levels.LEVELS.forEach(function (level) {
     var res = Engine.runToEnd(program, map, m.dir);
     if (!res.won) fail(level, 'harta ' + (i + 1) + ': soluția nu termină nivelul (' + res.failed + ' la ' + res.r + ',' + res.c + ')');
     else if (res.extra && !level.maps[1]) fail(level, 'soluția are pași în plus după ce câștigă');
+}
+
+// programul „doar cu săgeți” copiat după o rulare: pașii unei variante, fără „Dacă”
+function trace(program, m, variant) {
+  var st = Engine.newState(Engine.parseGrid(m.grid, variant), m.dir), out = [], DIRS = ['up', 'right', 'down', 'left'];
+  var gen = Engine.run(program, st), step = gen.next();
+  while (!step.done) {
+    if (step.value.kind === 'move' || step.value.kind === 'win') out.push([DIRS[st.dir]]);
+    if (step.value.kind === 'talk' || step.value.kind === 'fix') out.push([step.value.kind]);
+    step = gen.next();
+  }
+  return Engine.fromCompact(out);
+}
+
+function checkEncounters(level, program, m) {
+  var holes = m.grid.join('').split('?').length - 1;
+  m.variants.forEach(function (v) {
+    if (v.length !== holes) fail(level, 'varianta ' + v + ' nu are ' + holes + ' căsuțe');
+    var map = Engine.parseGrid(m.grid, v);
+    map.cells.forEach(function (row, r) {
+      row.forEach(function (ch, c) {
+        if ('NWG'.indexOf(ch) < 0) return;
+        var has = (level.npcs || []).some(function (n) { return n.at[0] === r && n.at[1] === c; });
+        if (!has) fail(level, 'personaj fără date la ' + r + ',' + c);
+      });
+    });
+    var arrows = trace(program, m, v);
+    if (!Engine.runToEnd(arrows, map, m.dir).won) fail(level, 'pașii copiați nu merg nici pe varianta lor (' + v + ')');
+    var lucky = m.variants.every(function (o) { return Engine.runToEnd(arrows, Engine.parseGrid(m.grid, o), m.dir).won; });
+    if (lucky && m.variants.length > 1) fail(level, 'varianta ' + v + ' se poate rezolva fără „Dacă”');
   });
+}
+
+function checkNpcs(level) {
+  var m = level.maps[0];
+  level.npcs.forEach(function (n) {
+    var found = (m.variants || [undefined]).some(function (v) {
+      return 'NWG'.indexOf(Engine.parseGrid(m.grid, v).cells[n.at[0]][n.at[1]]) >= 0;
+    });
+    if (!found) fail(level, n.name + ' nu stă pe o căsuță de personaj');
+    if (!n.who || !n.name || !n.say) fail(level, n.name + ': lipsesc textele');
+    if (n.dosar) {
+      if (m.grid[n.at[0]][n.at[1]] === '?') fail(level, 'dosarul lui ' + n.name + ' e sub „?”');
+      if (!Levels.CHALLENGES.some(function (c) { return c.id === n.dosar; })) fail(level, 'dosar inexistent ' + n.dosar);
+    } else if (!n.task) fail(level, n.name + ' n-are nici întrebare, nici dosar');
+    var t = n.task;
+    if (t && t.type === 'quiz' && !(t.q && t.hint && t.options[t.answer] !== undefined && t.options.length > 1)) fail(level, n.name + ': întrebare incompletă');
+    if (t && t.type === 'where') {
+      var res = Engine.runToEnd(Engine.fromCompact(t.program), Engine.parseGrid(t.grid), 1);
+      if (res.failed !== 'ended') fail(level, n.name + ': programul nu se termină liniștit (' + res.failed + ')');
+    }
+    if (t && ['quiz', 'where'].indexOf(t.type) < 0) fail(level, n.name + ': tip necunoscut ' + t.type);
+  });
+}
+
+// Fiecare dosar trebuie să fie dat de un personaj de pe drum, nu ocolit.
+Levels.CHALLENGES.forEach(function (ch) {
+  var lvl = Levels.LEVELS.filter(function (l) { return (l.npcs || []).some(function (n) { return n.dosar === ch.id; }); })[0];
+  if (!lvl) { failures++; console.log('  ✗ ' + ch.name + ': niciun personaj nu-l dă'); return; }
+  var n = lvl.npcs.filter(function (x) { return x.dosar === ch.id; })[0], m = lvl.maps[0];
+  m.variants.forEach(function (v) {
+    var rows = Engine.fillGrid(m.grid, v).map(function (row, r) {
+      return row.split('').map(function (c, i) { return r === n.at[0] && i === n.at[1] ? '#' : c; }).join('');
+    });
+    var map = Engine.parseGrid(rows), seen = {}, todo = [map.start];
+    while (todo.length) {
+      var p = todo.pop(), k = p.r + ',' + p.c;
+      if (seen[k] || map.cells[p.r][p.c] === '#') continue;
+      seen[k] = 1;
+      [[0, 1], [1, 0], [0, -1], [-1, 0]].forEach(function (d) { todo.push({ r: p.r + d[0], c: p.c + d[1] }); });
+    }
+    if (seen[map.treasure.r + ',' + map.treasure.c]) { failures++; console.log('  ✗ ' + lvl.name + ': dosarul se poate ocoli (' + v + ')'); }
+  });
+});
+
+// Blocurile „Vorbește” și „Repară” merg doar lângă ținta lor.
+function act(rows, prog) { return Engine.runToEnd(Engine.fromCompact(prog), Engine.parseGrid(rows), 1); }
+var actCases = [
+  ['Vorbește lângă paznic', ['#####', '#SGT#', '#####'], [['talk'], ['right'], ['right']], null],
+  ['Vorbește fără paznic', ['#####', '#S.T#', '#####'], [['talk']], 'noTarget'],
+  ['Repară lângă pod', ['#####', '#SRT#', '#####'], [['fix'], ['right'], ['right']], null],
+  ['Repară fără pod', ['#####', '#S.T#', '#####'], [['fix']], 'noTarget'],
+  ['Paznicul oprește eroul', ['#####', '#SGT#', '#####'], [['right']], 'bump'],
+  ['Podul rupt doboară eroul', ['#####', '#SRT#', '#####'], [['right']], 'hazard']
+];
+actCases.forEach(function (t) {
+  var res = act(t[1], t[2]);
+  if (t[3] === null ? !res.won : res.failed !== t[3]) { failures++; console.log('  ✗ ' + t[0] + ': ' + res.failed); }
+});
+['G', 'R'].forEach(function (ch) {
+  var map = Engine.parseGrid(['#####', '#S' + ch + 'T#', '#####']);
+  if (Engine.pathAhead(Engine.newState(map, 1), 1)) { failures++; console.log('  ✗ ' + ch + ' nu trebuie să fie drum'); }
 });
 
 // Programe greșite trebuie să eșueze corect.
@@ -148,8 +246,6 @@ var levelIds = Levels.LEVELS.map(function (l) { return l.id; });
 Levels.CHALLENGES.forEach(function (ch) {
   function bad(i, msg) { failures++; console.log('  ✗ ' + ch.name + ', sarcina ' + (i + 1) + ': ' + msg); }
   if (levelIds.indexOf(ch.id) >= 0) bad(-1, 'id-ul e folosit și de un nivel');
-  var after = Levels.LEVELS.filter(function (l) { return l.id === ch.after; })[0];
-  if (!after || after.world !== ch.world) bad(-1, 'nivelul dinainte nu e în misiune');
   ch.tasks.forEach(function (t, i) {
     if (t.type === 'pick') {
       t.options.forEach(function (o, k) {

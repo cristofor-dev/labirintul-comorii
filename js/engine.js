@@ -20,19 +20,37 @@
   //   'I' gheață (aluneci în aceeași direcție până dai de altceva),
   //   'C' pod șubred (se prăbușește după ce treci de el; a doua oară cazi),
   //   '>' '<' '^' 'v' săgeți magice (te împing un pătrățel în direcția lor).
+  // Întâlnirile din Misiunea 4:
+  //   'N' martor (eroul calcă la el și primește o întrebare; 'W' e un martor care dă și o cheie),
+  //   'G' paznic (blochează drumul până îi vorbești cu blocul „Vorbește”, de pe un pătrățel alăturat),
+  //   'R' pod rupt (cazi dacă pășești pe el, până îl repari cu blocul „Repară”, de pe un pătrățel alăturat),
+  //   '?' căsuță ascunsă: fiecare variantă a hărții are alt conținut acolo (vezi fillGrid).
   // Desen (Misiunea 1, fără comoară): 'D' linia modelului, 'E' linia de a doua culoare, 'Q' găleată de
   // vopsea (după ea creionul desenează cu a doua culoare). Eroul desenează pe unde trece, iar desenul e
   // gata când a trecut pe toate pătrățelele modelului, cu culoarea bună. La desenul dictat
   // (map.dictation = true), modelul e ascuns: robotul desenează oriunde, iar la final se compară (judge).
-  var BLOCKED = { '#': 1, P: 1 };
-  var HAZARDS = { L: 'lava', A: 'water', F: 'mimic' };
+  var BLOCKED = { '#': 1, P: 1, G: 1 };
+  var HAZARDS = { L: 'lava', A: 'water', F: 'mimic', R: 'broken' };
   var PUSH = { '^': 0, '>': 1, v: 2, '<': 3 };
-  var KEEP = { '#': 1, T: 1, P: 1, L: 1, A: 1, B: 1, D: 1, E: 1, Q: 1, K: 1, U: 1, M: 1, O: 1, I: 1, C: 1, F: 1, '>': 1, '<': 1, '^': 1, v: 1 };
+  var KEEP = { '#': 1, T: 1, P: 1, L: 1, A: 1, B: 1, D: 1, E: 1, Q: 1, K: 1, U: 1, M: 1, O: 1, I: 1, C: 1, F: 1, N: 1, W: 1, G: 1, R: 1, '>': 1, '<': 1, '^': 1, v: 1 };
   var INK = { D: 1, E: 2 }; // culoarea cerută de fiecare linie a modelului
 
-  function parseGrid(rows) {
-    var start = null, treasure = null, ink = 0, coins = 0, portals = [];
-    var cells = rows.map(function (line, r) {
+  // Harta unei variante: fiecare '?' primește, în ordinea citirii, câte un caracter din „variant”.
+  function fillGrid(rows, variant) {
+    var n = 0;
+    return rows.map(function (line) {
+      return line.replace(/\?/g, function () { return variant[n++]; });
+    });
+  }
+
+  // variant (opțional) = ce se află sub căsuțele '?'; map.hidden ține minte care sunt ele
+  function parseGrid(rows, variant) {
+    var start = null, treasure = null, ink = 0, coins = 0, portals = [], hidden = {};
+    rows.forEach(function (line, r) {
+      line.split('').forEach(function (ch, c) { if (ch === '?') hidden[r + ',' + c] = 1; });
+    });
+    var filled = variant ? fillGrid(rows, variant) : rows;
+    var cells = filled.map(function (line, r) {
       return line.split('').map(function (ch, c) {
         if (ch === 'S') start = { r: r, c: c };
         if (ch === 'T') treasure = { r: r, c: c };
@@ -45,7 +63,7 @@
     // la desen, startul face parte din model: eroul pune creionul pe hârtie acolo
     if (ink && start) { cells[start.r][start.c] = 'D'; ink++; }
     return { cells: cells, rows: cells.length, cols: cells[0].length, start: start, treasure: treasure,
-      drawing: ink, coins: coins, portals: portals };
+      drawing: ink, coins: coins, portals: portals, hidden: hidden };
   }
 
   function inside(map, r, c) {
@@ -78,7 +96,7 @@
 
   // „Dacă e drum ⬆/➡/⬇/⬅”: condițiile privesc în cele 4 direcții ale hărții (eroul nu se rotește).
   // Drum = un pătrățel pe care poți călca fără să pățești ceva: nu zid, bolovan, lavă, apă, pod prăbușit
-  // sau comoară falsă; poarta e drum doar dacă ai cheia.
+  // comoară falsă, paznic sau pod rupt; poarta e drum doar dacă ai cheia.
   function pathAhead(st, cond) {
     var d = ABS_DIR[cond] !== undefined ? ABS_DIR[cond] : st.dir;
     var r = st.r + DR[d], c = st.c + DC[d], ch = cellAt(st, r, c);
@@ -106,7 +124,7 @@
       if (BLOCKED[ch] || (ch === 'U' && !st.keys)) {
         if (forced) return; // alunecarea / împingerea se oprește la obstacol
         st.failed = 'bump';
-        st.bumped = ch; // '#' zid, 'P' bolovan, 'U' poartă încuiată
+        st.bumped = ch; // '#' zid, 'P' bolovan, 'U' poartă încuiată, 'G' paznic
         yield { id: node.id, kind: 'bump', r: nr, c: nc };
         return;
       }
@@ -147,6 +165,11 @@
         }
       }
       if (ch === 'K') { st.keys++; st.used[k] = 1; ev.key = true; }
+      if (ch === 'N' || ch === 'W') { // darul martorului se dă aici, ca rularea să meargă și fără ferestre
+        st.used[k] = 1;
+        ev.meet = true;
+        if (ch === 'W') { st.keys++; ev.gift = 'key'; }
+      }
       if (ch === 'M') { st.coinsLeft--; st.used[k] = 1; ev.coin = true; }
       if (ch === 'T') {
         if (st.coinsLeft > 0) ev.locked = true; // comoara e încuiată până aduni toate monedele
@@ -167,6 +190,22 @@
       else return;
       if (!tick(st)) { yield { id: node.id, kind: 'limit' }; return; }
     }
+  }
+
+  // „Vorbește” (paznic) și „Repară” (pod rupt) lucrează pe un pătrățel alăturat.
+  // Fără țintă sunt o greșeală: altfel copilul le-ar putea pune peste tot, fără să se uite în jur.
+  function* act(st, node, target) {
+    for (var d = 0; d < 4; d++) {
+      var r = st.r + DR[d], c = st.c + DC[d];
+      if (cellAt(st, r, c) === target) {
+        st.used[r + ',' + c] = 1;
+        yield { id: node.id, kind: node.type, r: r, c: c };
+        return;
+      }
+    }
+    st.failed = 'noTarget';
+    st.noTarget = node.type;
+    yield { id: node.id, kind: 'noTarget', what: node.type };
   }
 
   // Generator: produce câte un eveniment pentru fiecare pas (mișcare, rotire, verificare).
@@ -202,6 +241,12 @@
       case 'turnRight':
         st.dir = (st.dir + 1) % 4;
         yield { id: node.id, kind: 'turn' };
+        break;
+      case 'talk':
+        yield* act(st, node, 'G');
+        break;
+      case 'fix':
+        yield* act(st, node, 'R');
         break;
       case 'repeat':
         for (var k = 0; k < node.n; k++) {
@@ -303,12 +348,12 @@
     while (!gen.next().done) { /* consumă pașii */ }
     if (map.dictation && !st.failed) judge(st);
     return { won: st.won, extra: !!st.extra, vague: st.vague || null, coinsLeft: st.coinsLeft,
-      missing: st.missing ? st.missing.length : 0, extraCells: st.extraCells ? st.extraCells.length : 0, failed: st.failed || (st.won ? null : 'ended'), hazard: st.hazard || null, bumped: st.bumped || null, r: st.r, c: st.c, steps: st.steps };
+      missing: st.missing ? st.missing.length : 0, extraCells: st.extraCells ? st.extraCells.length : 0, failed: st.failed || (st.won ? null : 'ended'), hazard: st.hazard || null, bumped: st.bumped || null, noTarget: st.noTarget || null, r: st.r, c: st.c, steps: st.steps };
   }
 
   var api = {
     DR: DR, DC: DC, CONTAINERS: CONTAINERS, VAGUE: VAGUE, STEP_LIMIT: STEP_LIMIT, judge: judge,
-    pathAhead: pathAhead, parseGrid: parseGrid, isOpen: isOpen, cellAt: cellAt, INK: INK, hazardAt: hazardAt, newState: newState, run: runList,
+    pathAhead: pathAhead, parseGrid: parseGrid, fillGrid: fillGrid, isOpen: isOpen, cellAt: cellAt, INK: INK, hazardAt: hazardAt, newState: newState, run: runList,
     countBlocks: countBlocks, usedTypes: usedTypes, makeNode: makeNode,
     fromCompact: fromCompact, runToEnd: runToEnd
   };

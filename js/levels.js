@@ -1,5 +1,6 @@
 // Nivelele jocului, grupate pe misiuni. Hartă: '#' zid, '.' drum, 'S' start, 'T' comoară,
 // 'P' bolovan (te lovești de el), 'L' lavă și 'A' apă (cazi în ele), 'B' pod.
+// Misiunea 4: 'N'/'W' martor, 'G' paznic, 'R' pod rupt, '?' căsuță ascunsă (vezi comentariul misiunii).
 // 'D' = linia unui desen-model (Misiunea 1, robotul desenator): în loc de comoară, eroul trebuie să
 // treacă pe toate pătrățelele desenului fără să iasă din el.
 // dir = direcția de start (0 sus, 1 dreapta, 2 jos, 3 stânga).
@@ -20,7 +21,7 @@
     { id: 2, number: 3, name: 'Arhitectul', color: '#f59e0b', icon: '🏗️', available: true,
       intro: 'Un arhitect vede ce se repetă. Blocul „Repetă” face aceiași pași de mai multe ori, ca să scrii mai puțin.' },
     { id: 3, number: 4, name: 'Detectivul junior', color: '#10b981', icon: '🔍', available: true,
-      intro: 'Un detectiv se uită în jur înainte să facă un pas. Cu „Dacă e drum”, eroul verifică singur pe unde poate merge.' }
+      intro: 'Cine a mutat perna Bufniței? Un detectiv se uită în jur înainte să facă un pas: cu „Dacă e drum”, eroul verifică singur pe unde poate merge, iar personajele de pe hartă îi dau indicii.' }
   ];
 
   var MOVE_ABS = ['up', 'down', 'left', 'right'];
@@ -387,236 +388,178 @@
         '###############'] }],
       solution: [['repeat', 2, [['repeat', 3, [['up'], ['right']]], ['repeat', 3, [['right'], ['down']]]]]] },
 
-    // ---------------- Misiunea 4 (Detectivul junior): „Repetă până la comoară” și „Dacă e drum” ----------------
-    // Condițiile privesc în cele 4 direcții ale hărții (eroul nu se rotește). Aproape fiecare nivel are mai
-    // multe hărți: același program trebuie să meargă pe toate, deci eroul trebuie să se uite în jur.
-    // Între nivele stau cele 3 dosare cu provocări (vezi CHALLENGES).
-    { id: 21, world: 3, name: 'Două drumuri', icon: '🔎',
-      hint: 'Bloc nou: „Repetă până la comoară”. Face ce pui înăuntrul lui iar și iar, până ajunge eroul la comoară. Atenție: același program trebuie să meargă pe ambele hărți!',
+    // ---------------- Misiunea 4 (Detectivul junior): cine a mutat perna Bufniței? ----------------
+    // O singură hartă pe nivel. Căsuțele '?' au alt conținut la fiecare pornire (maps[0].variants: câte un
+    // șir pentru fiecare variantă, cu un caracter pentru fiecare '?', în ordinea citirii), deci eroul
+    // trebuie să se uite în jur: condițiile privesc în cele 4 direcții ale hărții (eroul nu se rotește).
+    // Programul trebuie să meargă pe toate variantele; jocul le verifică pe ascuns după o victorie.
+    // npcs = personajele de pe hartă: at [rând, coloană], who (emoji), name, say (ce spune), clue (indiciul
+    // de după răspuns) și fie task (o întrebare), fie dosar (id din CHALLENGES). 'N'/'W' se întâlnesc
+    // călcând pe căsuță, 'G' cu blocul „Vorbește”. Dosarele nu stau niciodată pe un '?'.
+    // finale = ce află eroul la comoară, la sfârșitul misiunii.
+    { id: 21, world: 3, name: 'Pe aleea din parc', icon: '🐱',
+      hint: 'Bloc nou: „Repetă până la comoară”. Face ce pui înăuntrul lui iar și iar, până ajunge eroul la comoară. Cine stă pe alee are ceva să-ți spună!',
       blocks: MOVE_ABS.concat(['repeatUntil']), optimal: 2, maxBlocks: 3,
-      maps: [
-        { dir: 1, grid: [
-          '#########',
-          '#S.....T#',
-          '#########'] },
-        { dir: 1, grid: [
-          '#############',
-          '#S..M...M..T#',
-          '#############'] }],
+      maps: [{ dir: 1, grid: [
+        '#################',
+        '#S.....N.......T#',
+        '#################'] }],
+      npcs: [{ at: [1, 7], who: '🐱', name: 'Pisica',
+        say: 'Miau! Am un indiciu pentru tine, dar întâi să văd dacă ești detectiv.',
+        clue: 'Lângă pernă am găsit o pană mare și moale.',
+        task: { type: 'quiz', q: 'Când se oprește blocul „Repetă până la comoară”?',
+          options: ['După 3 pași', 'Când eroul ajunge la comoară', 'Niciodată'], answer: 1,
+          hint: 'Citește încă o dată numele blocului.' } }],
       solution: [['repeatUntil', [['right']]]] },
-    { id: 22, world: 3, name: 'Drum sau zid?', icon: '❓',
-      hint: 'Bloc nou: „Dacă e drum”. Eroul se uită în direcția aleasă de tine și face ce e înăuntru doar dacă acolo e drum. Programul trebuie să meargă pe toate cele 3 hărți.',
-      blocks: LOOK, optimal: 4, maxBlocks: 5,
-      maps: [
-        { dir: 1, grid: [
-          '##########',
-          '#S..######',
-          '###....###',
-          '######..T#',
-          '##########'] },
-        { dir: 1, grid: [
-          '##########',
-          '#S.#######',
-          '##......##',
-          '#######.T#',
-          '##########'] },
-        { dir: 1, grid: [
-          '##########',
-          '#S...#####',
-          '####..####',
-          '#####...T#',
-          '##########'] }],
-      solution: [['repeatUntil', [['if', 'down', [['down']]], ['right']]]] },
-    { id: 23, world: 3, name: 'Monedele ascunse', icon: '🪙',
-      hint: 'Pe drum sunt monede, iar coborârile au lungimi diferite. Ai la dispoziție „Repetă până la comoară” și oricâte blocuri „Dacă e drum”.',
+
+    { id: 22, world: 3, name: 'Răscrucea', icon: '❓',
+      hint: 'Bloc nou: „Dacă e drum”. Căsuțele „?” se schimbă la fiecare pornire, așa că eroul trebuie să se uite unde poate merge. Ai la îndemână „Repetă până la comoară” și „Dacă e drum”.',
       blocks: LOOK, optimal: 5, maxBlocks: 6,
-      maps: [
-        { dir: 1, grid: [
-          '#########',
-          '#S.M#####',
-          '###.#####',
-          '###.#####',
-          '###M...##',
-          '######M##',
-          '######.T#',
-          '#########'] },
-        { dir: 1, grid: [
-          '#########',
-          '#S.######',
-          '##..M####',
-          '####.####',
-          '####.####',
-          '####M####',
-          '####..MT#',
-          '#########'] }],
+      maps: [{ dir: 1, variants: ['.##', '#.#', '##.'], grid: [
+        '##########',
+        '#S......##',
+        '###?#?#?##',
+        '###.....T#',
+        '##########'] }],
       solution: [['repeatUntil', [['if', 'down', [['down']]], ['if', 'right', [['right']]]]]] },
+
+    { id: 23, world: 3, name: 'Biblioteca', icon: '📚',
+      hint: 'Sub căsuțele „?” pot fi monede, iar comoara se deschide doar după ce le strângi pe toate. Ai la îndemână „Repetă până la comoară” și „Dacă e drum”.',
+      blocks: LOOK, optimal: 5, maxBlocks: 6,
+      maps: [{ dir: 1, variants: ['M##.', '#M#M', '.#M#', '#.#M'], grid: [
+        '############',
+        '#S.N....####',
+        '####?#?#####',
+        '####......##',
+        '######?#?###',
+        '######....T#',
+        '############'] }],
+      npcs: [{ at: [1, 3], who: '📚', name: 'Bibliotecara', dosar: 101,
+        say: 'Liniște, te rog! Am un dosar secret pentru tine. Rezolvă-l și îți spun ce am văzut.',
+        clue: 'Azi-noapte a trecut cineva pe aici, fără niciun zgomot.' }],
+      solution: [['repeatUntil', [['if', 'down', [['down']]], ['if', 'right', [['right']]]]]] },
+
     { id: 24, world: 3, name: 'Lacul înghețat', icon: '🧊',
-      hint: 'Surpriză: pe drum e gheață! 🧊 Eroul alunecă până la capătul gheții. Ai la dispoziție „Repetă până la comoară” și blocurile „Dacă e drum”.',
+      hint: 'Pe gheață eroul alunecă până dă de ceva. Ai la îndemână „Repetă până la comoară” și „Dacă e drum”.',
       blocks: LOOK, optimal: 5, maxBlocks: 6,
-      maps: [
-        { dir: 1, grid: [
-          '#############',
-          '#SIII.#######',
-          '#####.#######',
-          '#####.III..##',
-          '##########.T#',
-          '#############'] },
-        { dir: 1, grid: [
-          '###########',
-          '#S..#######',
-          '###I#######',
-          '###I#######',
-          '###I#######',
-          '###.IIII.##',
-          '########.T#',
-          '###########'] }],
+      maps: [{ dir: 1, variants: ['I#', '#.', '.#'], grid: [
+        '############',
+        '#S.NIII....#',
+        '#######?#?##',
+        '#######...T#',
+        '############'] }],
+      npcs: [{ at: [1, 3], who: '🎣', name: 'Pescarul',
+        say: 'Stai, că alunecă rău pe aici! Hai să vedem dacă știi cum merge gheața.',
+        clue: 'Noaptea, ceva a zburat peste lac. Avea aripi mari.',
+        task: { type: 'where', q: 'Unde se oprește eroul? Atinge pătrățelul!',
+          grid: [
+            '#########',
+            '#S.III..#',
+            '#########'],
+          program: [['right'], ['right']] } }],
       solution: [['repeatUntil', [['if', 'down', [['down']]], ['if', 'right', [['right']]]]]] },
-    { id: 25, world: 3, name: 'Drumul prin portal', icon: '🌀',
-      hint: 'Surpriză: drumul continuă printr-un portal! 🌀 Ai la dispoziție „Repetă până la comoară” și blocurile „Dacă e drum”.',
+
+    { id: 25, world: 3, name: 'Turnul', icon: '💂',
+      hint: 'Bloc nou: „Vorbește”. Merge doar când stai lângă paznic, altfel n-ai cu cine vorbi. Ai la îndemână și „Repetă până la comoară” și „Dacă e drum”.',
+      blocks: LOOK.concat(['talk']), optimal: 7, maxBlocks: 8,
+      maps: [{ dir: 1, variants: ['.#', '#.'], grid: [
+        '##############',
+        '#S.G..O#O....#',
+        '#########?#?##',
+        '#########...T#',
+        '##############'] }],
+      npcs: [{ at: [1, 3], who: '💂', name: 'Paznicul',
+        say: 'Stai! Pe aici trec doar cei care știu cum gândește un program.',
+        clue: 'Am văzut doi ochi mari, în întuneric. Stăteau de veghe toată noaptea.',
+        task: { type: 'quiz', q: 'Scrie „Dacă e drum ➡ Dreapta”, dar la dreapta eroului e zid. Ce face eroul?',
+          options: ['Intră în zid', 'Sare peste ce e în bloc', 'Se oprește programul'], answer: 1,
+          hint: 'Gândește-te ce face blocul „Dacă” atunci când răspunsul e „nu”.' } }],
+      solution: [['right'], ['talk'], ['repeatUntil', [['if', 'down', [['down']]], ['if', 'right', [['right']]]]]] },
+
+    { id: 36, world: 3, name: 'Pivnița', icon: '🧹',
+      hint: 'Poarta se deschide doar dacă ai cheie, iar cu o cheie în buzunar ea e drum pentru „Dacă”. Ai la îndemână „Repetă până la comoară” și „Dacă e drum”.',
       blocks: LOOK, optimal: 5, maxBlocks: 6,
-      maps: [
-        { dir: 1, grid: [
-          '############',
-          '#######...T#',
-          '#######.####',
-          '#....O#O####',
-          '#.##########',
-          '#S##########',
-          '############'] },
-        { dir: 1, grid: [
-          '############',
-          '#########.T#',
-          '#....O###.##',
-          '#.#######.##',
-          '#S####O...##',
-          '############'] }],
-      solution: [['repeatUntil', [['if', 'up', [['up']]], ['if', 'right', [['right']]]]]] },
-    { id: 36, world: 3, name: 'Cheia și poarta', icon: '🔑',
-      hint: 'Porțile se deschid doar cu o cheie. 🔑 Bun de știut: pentru un detectiv, poarta e drum doar dacă are cheia la el. Ai la dispoziție „Repetă până la comoară” și blocurile „Dacă e drum”.',
-      blocks: LOOK, optimal: 5, maxBlocks: 6,
-      maps: [
-        { dir: 1, grid: [
-          '##########',
-          '#S..K.####',
-          '##U##U####',
-          '##F##...##',
-          '#######.T#',
-          '##########'] },
-        { dir: 1, grid: [
-          '###########',
-          '#S.K..#####',
-          '##U##U#####',
-          '##F##..K.##',
-          '#####U##U##',
-          '#####F##.T#',
-          '###########'] }],
+      maps: [{ dir: 1, variants: ['U#', '#U'], grid: [
+        '############',
+        '#S.W....####',
+        '####?#?#####',
+        '####.....T##',
+        '############'] }],
+      npcs: [{ at: [1, 3], who: '🧹', name: 'Îngrijitorul', dosar: 102,
+        say: 'Am cheia de la poartă, dar o dau doar cui rezolvă dosarul ăsta.',
+        clue: 'Poftim cheia! 🗝️ Și încă ceva: pe jos, lângă pernă, erau urme de gheare mici.' }],
       solution: [['repeatUntil', [['if', 'down', [['down']]], ['if', 'right', [['right']]]]]] },
-    { id: 37, world: 3, name: 'Dacă... altfel', icon: '↔️',
-      hint: 'Bloc nou: „Dacă e drum … altfel”. Dacă e drum, eroul face ce e în prima parte; altfel, face ce e după „altfel”. Programul trebuie să meargă pe toate cele 3 hărți.',
+
+    { id: 37, world: 3, name: 'Grădina', icon: '🌻',
+      hint: 'Bloc nou: „Dacă e drum … altfel”. Poate alege între două lucruri. Ai la îndemână și „Repetă până la comoară”.',
       blocks: LOOK_ELSE, optimal: 4, maxBlocks: 5,
-      maps: [
-        { dir: 1, grid: [
-          '###########',
-          '########.T#',
-          '#####....##',
-          '#####.#####',
-          '#####.#####',
-          '###...#####',
-          '#S..#######',
-          '###########'] },
-        { dir: 1, grid: [
-          '###########',
-          '#######..T#',
-          '######..###',
-          '######.####',
-          '##.....####',
-          '#S.########',
-          '###########'] },
-        { dir: 1, grid: [
-          '#########',
-          '######.T#',
-          '####...##',
-          '####.####',
-          '####.####',
-          '####.####',
-          '#S...####',
-          '#########'] }],
-      solution: [['repeatUntil', [['ifElse', 'right', [['right']], [['up']]]]]] },
-    { id: 38, world: 3, name: 'Podurile șubrede', icon: '🪵',
-      hint: 'Poduri șubrede peste lac! 🪵 Pentru un detectiv, apa nu e drum. Ai la dispoziție „Repetă până la comoară” și blocurile „Dacă”.',
-      blocks: LOOK_ELSE, optimal: 4, maxBlocks: 5,
-      maps: [
-        { dir: 1, grid: [
-          'AAAAAAAAAAA',
-          'ASCCAAAAAAA',
-          'AAA.AAAAAAA',
-          'AAAC.CCAAAA',
-          'AAAAAA.CAAA',
-          'AAAAAAAC.TA',
-          'AAAAAAAAAAA'] },
-        { dir: 1, grid: [
-          'AAAAAAAAA',
-          'ASAAAAAAA',
-          'ACAAAAAAA',
-          'A.CC.AAAA',
-          'AAAACAAAA',
-          'AAAA.CCAA',
-          'AAAAAA.TA',
-          'AAAAAAAAA'] }],
-      solution: [['repeatUntil', [['ifElse', 'down', [['down']], [['right']]]]]] },
-    { id: 39, world: 3, name: 'Comoara falsă', icon: '👀',
-      hint: 'Pe drum stau comori false, cu ochi. 👀 Un detectiv nu se lasă păcălit: pentru el, comoara falsă nu e drum. Ai la dispoziție „Repetă până la comoară” și blocurile „Dacă”.',
-      blocks: LOOK_ELSE, optimal: 4, maxBlocks: 5,
-      maps: [
-        { dir: 1, grid: [
-          '##########',
-          '#S...F####',
-          '####.#####',
-          '####...F##',
-          '######.###',
-          '######.###',
-          '######..T#',
-          '##########'] },
-        { dir: 1, grid: [
-          '##########',
-          '#S.F######',
-          '##.#######',
-          '##.#######',
-          '##.....F##',
-          '######.MT#',
-          '##########'] }],
-      solution: [['repeatUntil', [['ifElse', 'right', [['right']], [['down']]]]]] },
+      maps: [{ dir: 1, variants: ['.#.##', '#.#.#', '#.##.'], grid: [
+        '############',
+        '#######...T#',
+        '#######?#?##',
+        '###.......##',
+        '###?#?#?####',
+        '#SN.....####',
+        '############'] }],
+      npcs: [{ at: [5, 2], who: '🌻', name: 'Grădinarul',
+        say: 'Bună! Florile mele îmi spun tot. Răspunde-mi la asta și îți zic ce au văzut.',
+        clue: 'Cine a mutat perna a stat noaptea sus, într-un copac.',
+        task: { type: 'quiz', q: 'În blocul „Dacă e drum … altfel”, câte ramuri face eroul la o verificare?',
+          options: ['Amândouă', 'Una singură', 'Niciuna'], answer: 1,
+          hint: 'Gândește-te la o răscruce: poți merge pe două drumuri deodată?' } }],
+      solution: [['repeatUntil', [['ifElse', 'up', [['up']], [['right']]]]]] },
+
+    { id: 38, world: 3, name: 'Râul', icon: '🔨',
+      hint: 'Bloc nou: „Repară”. Merge doar când stai lângă un pod rupt, iar podul rupt nu e drum pentru „Dacă”. Ai la îndemână și „Repetă până la comoară” și „Dacă e drum … altfel”.',
+      blocks: LOOK_ELSE.concat(['fix']), optimal: 4, maxBlocks: 5,
+      maps: [{ dir: 1, variants: ['R.R', '.RR', 'RR.'], grid: [
+        'AAAAAAAAAAAAA',
+        'AS.?.?.C.?.TA',
+        'AAAAAAAAAAAAA'] }],
+      solution: [['repeatUntil', [['ifElse', 'right', [['right']], [['fix']]]]]] },
+
+    { id: 39, world: 3, name: 'Sala comorilor', icon: '🗝️',
+      hint: 'Sub căsuțele „?” se pot ascunde comori false: pentru un detectiv, ele nu sunt drum. Ai la îndemână „Vorbește”, „Repetă până la comoară” și „Dacă e drum … altfel”.',
+      blocks: LOOK_ELSE.concat(['talk']), optimal: 6, maxBlocks: 7,
+      maps: [{ dir: 1, variants: ['F.#', '.#.', '.F.'], grid: [
+        '############',
+        '#S.G..?.####',
+        '#####?#?####',
+        '#####....T##',
+        '############'] }],
+      npcs: [{ at: [1, 3], who: '🗝️', name: 'Paznicul-șef', dosar: 103,
+        say: 'Mai departe nu trece nimeni fără ultimul dosar!',
+        clue: 'Cel pe care îl cauți e foarte înțelept și îi plac recruții isteți.' }],
+      solution: [['right'], ['talk'], ['repeatUntil', [['ifElse', 'right', [['right']], [['down']]]]]] },
+
     { id: 40, world: 3, name: 'Marele caz', icon: '🏆',
-      hint: 'Marele caz al detectivului: trei labirinte și un singur program! 🏆 Drumul urcă și coboară. Ai la dispoziție blocurile „Dacă”, chiar și unul în altul.',
-      blocks: LOOK_ELSE, optimal: 6, maxBlocks: 8,
-      maps: [
-        { dir: 1, grid: [
-          '#############',
-          '#S.##########',
-          '##.#....#####',
-          '##M..##.#####',
-          '#######.#..T#',
-          '#######M..###',
-          '#############'] },
-        { dir: 1, grid: [
-          '############',
-          '##.M.#######',
-          '#S.#.#######',
-          '####.#....##',
-          '####..M##.T#',
-          '############'] },
-        { dir: 1, grid: [
-          '#############',
-          '#S...########',
-          '####M##..M###',
-          '####....#.###',
-          '#########..T#',
-          '#############'] }],
-      solution: [['repeatUntil', [['ifElse', 'right', [['right']], [['ifElse', 'down', [['down']], [['up']]]]]]]] }
+      hint: 'Totul la un loc! Un „Dacă” poate sta în alt „Dacă”. Ai la îndemână toate blocurile detectivului.',
+      blocks: LOOK_ELSE.concat(['talk', 'fix']), optimal: 9, maxBlocks: 11,
+      maps: [{ dir: 1, variants: ['R..', '.R.', '..R', 'RRR'], grid: [
+        '##############',
+        '#SN.G.?.?.####',
+        '#########?####',
+        '#########...T#',
+        '##############'] }],
+      npcs: [
+        { at: [1, 2], who: '🦊', name: 'Vulpea',
+          say: 'Hei, detectivule! Ești aproape. O ultimă ghicitoare de la mine.',
+          clue: 'Pană mare, zbor fără zgomot, ochi mari, gheare mici… Te gândești la cineva?',
+          task: { type: 'quiz', q: 'Toți paznicii au câte o cheie. Rex e paznic. Ce știm sigur?',
+            options: ['Rex are o cheie', 'Rex nu are nicio cheie', 'Rex are două chei'], answer: 0,
+            hint: 'Citește încă o dată prima propoziție.' } },
+        { at: [1, 4], who: '💂', name: 'Paznicul comorii',
+          say: 'Comoara e chiar după mine. Spune-mi întâi asta:',
+          clue: 'Bine judecat! Drumul e liber.',
+          task: { type: 'quiz', q: 'Sunt trei perne: roșie, verde și albastră. Perna mutată nu e roșie și nu e verde. Ce culoare are?',
+            options: ['Roșie', 'Verde', 'Albastră'], answer: 2,
+            hint: 'Taie din listă culorile care nu pot fi.' } }],
+      finale: 'Pană mare, zbor fără zgomot, ochi mari, gheare mici… Perna a mutat-o chiar Bufnița! 🦉 Voia să vadă dacă te uiți înainte să pășești. Cazul e închis, detectivule!',
+      solution: [['right'], ['right'], ['talk'], ['repeatUntil', [['ifElse', 'right', [['right']], [['ifElse', 'down', [['down']], [['fix']]]]]]]] }
   ];
 
   // Dosarele detectivului (Misiunea 4): provocări care recapitulează misiunile de dinainte.
-  // Un dosar stă după nivelul „after”; nivelul următor se deschide doar după ce dosarul e rezolvat.
+  // Îl dă un personaj de pe hartă (npcs[].dosar); după ce e rezolvat, eroul își continuă drumul.
   // Progresul se salvează ca la nivele, pe id (101–103): stars 0, blocks = câte greșeli a făcut copilul.
   // Tipuri de sarcini (verificate de test/test-levels.js):
   //   pick  = ce desenează robotul? (programul rulat pe fiecare desen; doar „answer” iese identic)
@@ -625,7 +568,7 @@
   //   where = unde se oprește eroul? (copilul atinge pătrățelul)
   //   build = scrie programul cu cel mult maxBlocks blocuri (show = programul lung de scurtat)
   var CHALLENGES = [
-    { id: 101, world: 3, after: 23, number: 1, name: 'Dosarul #1', topic: 'Instrucțiuni clare',
+    { id: 101, world: 3, number: 1, name: 'Dosarul #1', topic: 'Instrucțiuni clare',
       intro: 'Primul dosar verifică ce ai învățat ca Inginer și ca Navigator: instrucțiuni precise, pas cu pas.',
       tasks: [
         { type: 'pick', q: 'Ce desenează robotul cu programul acesta? Alege desenul!',
@@ -653,7 +596,7 @@
             '######'],
           cards: [['down'], ['right'], ['right'], ['up'], ['right']],
           solution: [['right'], ['up'], ['right'], ['right'], ['down']] }] },
-    { id: 102, world: 3, after: 36, number: 2, name: 'Dosarul #2', topic: 'Buclele arhitectului',
+    { id: 102, world: 3, number: 2, name: 'Dosarul #2', topic: 'Buclele arhitectului',
       intro: 'Al doilea dosar verifică ce ai învățat ca Arhitect: bucla „Repetă”.',
       tasks: [
         { type: 'where', q: 'Unde se oprește eroul după programul acesta? Atinge pătrățelul!',
@@ -688,7 +631,7 @@
             '##########'],
           program: [['repeat', 4, [['right']]], ['repeat', 2, [['down']]], ['repeat', 3, [['right']]]],
           wrong: [1], fix: { field: 'n', options: [2, 3, 4, 5], answer: 3 } }] },
-    { id: 103, world: 3, after: 39, number: 3, name: 'Dosarul #3', topic: 'Toată Academia',
+    { id: 103, world: 3, number: 3, name: 'Dosarul #3', topic: 'Toată Academia',
       intro: 'Ultimul dosar, înainte de marele caz: bucle una în alta, „Dacă” și un desen secret.',
       tasks: [
         { type: 'where', q: 'O buclă în altă buclă! Unde se oprește eroul? Atinge pătrățelul!',
